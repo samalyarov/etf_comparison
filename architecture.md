@@ -361,14 +361,17 @@ etf_comparison/
 ## 14. Phased roadmap
 
 - **Phase 0 — scaffolding** ✅ `.venv` (Python 3.13) + git initialised; this plan written.
-- **Phase 1 — walking skeleton.** SQLite schema + `db.py`; yfinance adapter; ingest a small
-  hard-coded watchlist; a minimal Streamlit "compare" page with a normalised-growth chart.
-- **Phase 2 — real comparison.** Full metrics layer (returns/CAGR/vol/Sharpe/drawdown/corr);
-  returns + risk tables; screener/rank page; `watchlist.yaml`; `ingest_log` + freshness view.
-- **Phase 3 — reliability & depth.** Add Tiingo (primary) + Stooq (fallback/cross-check);
-  fund_facts (TER/AUM) ingestion; distributions & yield; correlation heatmap.
+- **Phase 1 — walking skeleton** ✅ SQLite schema + `db.py`; yfinance adapter; `watchlist.yaml`
+  of 6 UCITS ETFs ingested; Streamlit "Compare" page with normalised-growth chart.
+- **Phase 2 — real comparison** ✅ Metrics layer (returns/CAGR/vol/Sharpe/Sortino/drawdown/
+  corr) with unit tests; returns + risk tables; Screener page; Detail page; `ingest_log` +
+  freshness on the Data page.
+- **Phase 3 — reliability & depth** 🟡 *partly done.* Tiingo + Stooq adapters wired as
+  fallbacks; TER seeded into `fund_facts` from the watchlist; dividends fetched into
+  `distributions`; correlation heatmap live. *Still to do:* live AUM/yield ingestion,
+  distribution-yield display, richer cross-source validation.
 - **Phase 4 — optional power-ups.** `ib_async` prices from IB Gateway; holdings & overlap
-  analysis; rolling-returns view; FX-adjusted returns; scheduled weekly fetch.
+  analysis; FX-adjusted returns; scheduled weekly fetch (Windows Task Scheduler).
 
 ---
 

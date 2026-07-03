@@ -344,10 +344,12 @@ etf_comparison/
 
 ## 13. Open decisions (need my input before/while building)
 
-1. **Region / domicile — the big one.** Am I investing from **Europe** (→ UCITS ETFs,
-   justETF, acc/dist & PRIIPs matter) or the **US** (→ US-domiciled ETFs, US screeners)?
-   This sets the ETF universe and the best fundamentals source. *Default assumption until I
-   say otherwise: European/UCITS, since I'm on IBKR and focused on ETFs — easy to flip.*
+1. **Region / domicile — ✅ DECIDED: Europe / UCITS** (2026-07-03). The universe is
+   **UCITS ETFs** (IE/LU domiciled); US-domiciled ETFs are largely un-buyable under PRIIPs.
+   Consequences baked into the build: **justETF** is the primary fundamentals/screening
+   source; the watchlist seeds with UCITS tickers/ISINs; **accumulating vs distributing** and
+   fund currency are front-and-centre; expect patchier yfinance fundamentals for European
+   listings (favour ISIN + `.L`/`.DE`/`.AS` tickers, cross-check with justETF/issuer factsheets).
 2. **Base currency** for return reporting (EUR? USD?). Affects FX handling.
 3. **Reliability vs zero-setup:** start pure-yfinance (Phase 1) or grab a free **Tiingo** key
    up front for cleaner data?

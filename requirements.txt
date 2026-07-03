@@ -1,0 +1,21 @@
+# --- Core data stack ---
+pandas
+numpy
+
+# --- Data sources ---
+yfinance            # primary: free EOD prices + basic fundamentals (Yahoo, unofficial)
+pandas-datareader   # Stooq access + fallback source
+# tiingo            # phase 2: reliable free API (needs key) — uncomment when adding
+# ib_async          # phase 4: prices from IBKR TWS/Gateway — uncomment when adding
+
+# --- UI ---
+streamlit
+plotly
+
+# --- Config ---
+pyyaml              # watchlist.yaml
+python-dotenv       # load API keys from .env
+
+# --- Dev / quality ---
+pytest
+ruff

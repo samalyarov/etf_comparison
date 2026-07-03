@@ -1,7 +1,7 @@
 # ETF Comparison
 
 A local, personal tool to gather, store, and compare **UCITS ETFs** (returns, cost, risk,
-structure) to support buy-and-hold investing through Interactive Brokers.
+structure) to support buy-and-hold investing through Interactive Brokers. I made it for personal use (looking into investment options right now) and the thing is ~95% vibe-coded, so if you somehow happen upon this page - judge it as such.
 
 See **[architecture.md](architecture.md)** for the full plan, data-source research, schema,
 and roadmap.

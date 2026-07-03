@@ -1,12 +1,13 @@
-# Streamlit theme — a clean, light "analytics" look.
-# Colours align with the validated data-viz palette used for the charts.
+# Streamlit base theme = Tokyo Night (the default in-app theme).
+# The in-app theme toggle reskins backgrounds, cards, and charts at runtime; canvas
+# widgets (dataframes) follow this static base, so they look best in Tokyo Night.
 
 [theme]
-base = "light"
-primaryColor = "#2a78d6"          # categorical slot 1 (blue) — accents, active nav, buttons
-backgroundColor = "#f7f8fa"       # page plane
-secondaryBackgroundColor = "#ffffff"  # cards, sidebar, inputs
-textColor = "#0b0b0b"             # primary ink
+base = "dark"
+primaryColor = "#7aa2f7"              # Tokyo Night blue — accents, active nav, buttons
+backgroundColor = "#16161e"           # page plane
+secondaryBackgroundColor = "#1a1b26"  # cards, inputs
+textColor = "#c0caf5"                 # foreground
 font = "sans serif"
 
 [server]

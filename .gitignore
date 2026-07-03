@@ -28,3 +28,6 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+
+# Miscellaneous
+brain/

@@ -1,0 +1,899 @@
+# Candidate UCITS ETF universe (INPUT to scripts/build_watchlist.py).
+# Hand-maintained. Each entry lists one or more Yahoo tickers (different exchange
+# listings of the same ISIN) tried in order; the build script keeps the first that
+# returns data and writes the verified result to watchlist.yaml.
+# Fields: isin, name, category, asset_class, region, acc_dist, ter, tickers[].
+
+candidates:
+- isin: IE00BK5BQT80
+  name: Vanguard FTSE All-World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0022
+  tickers:
+  - VWCE.DE
+  - VWRA.L
+- isin: IE00B3RBWM25
+  name: Vanguard FTSE All-World (Dist)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0022
+  tickers:
+  - VWRL.L
+  - VGWL.DE
+  - VWRL.AS
+- isin: IE000716YHJ7
+  name: Invesco FTSE All-World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0015
+  tickers:
+  - FWIA.DE
+  - FWRA.L
+- isin: IE0003XJA0J9
+  name: Amundi Prime All Country World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0007
+  tickers:
+  - WEBN.DE
+  - WEBG.L
+- isin: IE00B3YLTY66
+  name: SPDR MSCI ACWI IMI (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0017
+  tickers:
+  - SPYI.DE
+  - IMID.L
+- isin: IE00B44Z5B48
+  name: SPDR MSCI ACWI (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SPYY.DE
+  - ACWI.L
+- isin: IE00B6R52259
+  name: iShares MSCI ACWI (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - IUSQ.DE
+  - SSAC.L
+  - ISAC.L
+- isin: IE00B4L5Y983
+  name: iShares Core MSCI World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - IWDA.AS
+  - SWDA.L
+  - EUNL.DE
+- isin: IE00B0M62Q58
+  name: iShares MSCI World (Dist)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: DIST
+  ter: 0.005
+  tickers:
+  - IWRD.L
+  - IQQW.DE
+- isin: IE00BKX55T58
+  name: Vanguard FTSE Developed World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - VHVG.L
+  - VGVF.DE
+- isin: IE00BK5BQV03
+  name: Vanguard FTSE Developed World (Dist)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: DIST
+  ter: 0.0012
+  tickers:
+  - VEVE.L
+  - VGVE.DE
+- isin: IE00BJ0KDQ92
+  name: Xtrackers MSCI World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - XDWD.DE
+  - XDWL.L
+- isin: IE00BFY0GT14
+  name: SPDR MSCI World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SWRD.L
+  - SPPW.DE
+- isin: IE00B60SX394
+  name: Invesco MSCI World (Acc)
+  category: Global Equity
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0019
+  tickers:
+  - MXWS.L
+  - SC0J.DE
+- isin: IE00B5BMR087
+  name: iShares Core S&P 500 (Acc)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.0007
+  tickers:
+  - CSPX.L
+  - SXR8.DE
+- isin: IE0031442068
+  name: iShares Core S&P 500 (Dist)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: DIST
+  ter: 0.0007
+  tickers:
+  - IUSA.L
+  - IUSA.DE
+- isin: IE00BFMXXD54
+  name: Vanguard S&P 500 (Acc)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.0007
+  tickers:
+  - VUAA.L
+  - VUAA.DE
+  - VUAG.L
+- isin: IE00B3XXRP09
+  name: Vanguard S&P 500 (Dist)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: DIST
+  ter: 0.0007
+  tickers:
+  - VUSA.L
+  - VUSA.AS
+  - VUSD.DE
+- isin: IE00B6YX5C33
+  name: SPDR S&P 500 (Dist)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: DIST
+  ter: 0.0003
+  tickers:
+  - SPY5.L
+  - SPY5.DE
+- isin: IE00B3YCGJ38
+  name: Invesco S&P 500 (Acc)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.0005
+  tickers:
+  - SPXP.L
+  - SPXS.DE
+- isin: IE00B60SX170
+  name: iShares MSCI USA (Acc)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.0007
+  tickers:
+  - CSUS.L
+  - SXR4.DE
+- isin: IE00BKM4H197
+  name: iShares MSCI USA SRI (Acc)
+  category: US Equity
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - SUAS.L
+  - 2B7F.DE
+- isin: IE00B53SZB19
+  name: iShares Nasdaq 100 (Acc)
+  category: Nasdaq & Tech
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - CNDX.L
+  - SXRV.DE
+- isin: IE0032077012
+  name: Invesco EQQQ Nasdaq-100 (Dist)
+  category: Nasdaq & Tech
+  asset_class: equity
+  region: us
+  acc_dist: DIST
+  ter: 0.003
+  tickers:
+  - EQQQ.L
+  - EQQQ.DE
+- isin: IE00BMFKG444
+  name: Xtrackers Nasdaq 100 (Acc)
+  category: Nasdaq & Tech
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - XNAQ.DE
+  - XNAS.L
+- isin: IE00B3WJKG14
+  name: iShares S&P 500 Info Tech (Acc)
+  category: Nasdaq & Tech
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.0015
+  tickers:
+  - IITU.L
+  - QDVE.DE
+- isin: IE00BM67HT60
+  name: Xtrackers MSCI World Info Tech (Acc)
+  category: Nasdaq & Tech
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - XDWT.DE
+  - XWTS.L
+- isin: IE00B4K48X80
+  name: iShares Core MSCI Europe (Acc)
+  category: Europe Equity
+  asset_class: equity
+  region: europe
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SMEA.L
+  - IMEA.DE
+- isin: LU0908500753
+  name: Amundi Stoxx Europe 600 (Acc)
+  category: Europe Equity
+  asset_class: equity
+  region: europe
+  acc_dist: ACC
+  ter: 0.0007
+  tickers:
+  - MEUD.PA
+  - LYP6.DE
+- isin: DE0002635307
+  name: iShares STOXX Europe 600 (Dist)
+  category: Europe Equity
+  asset_class: equity
+  region: europe
+  acc_dist: DIST
+  ter: 0.002
+  tickers:
+  - EXSA.DE
+- isin: IE00B945VV12
+  name: Vanguard FTSE Developed Europe (Dist)
+  category: Europe Equity
+  asset_class: equity
+  region: europe
+  acc_dist: DIST
+  ter: 0.001
+  tickers:
+  - VEUR.L
+  - VGEU.DE
+- isin: IE00B14X4Q57
+  name: iShares MSCI EMU (Acc)
+  category: Europe Equity
+  asset_class: equity
+  region: eurozone
+  acc_dist: ACC
+  ter: 0.0018
+  tickers:
+  - CEU2.L
+  - SXR7.DE
+- isin: IE00BKM4GZ66
+  name: iShares Core MSCI EM IMI (Acc)
+  category: Emerging Markets
+  asset_class: equity
+  region: emerging
+  acc_dist: ACC
+  ter: 0.0018
+  tickers:
+  - EIMI.L
+  - IS3N.DE
+- isin: IE00B4L5YC18
+  name: iShares MSCI EM (Acc)
+  category: Emerging Markets
+  asset_class: equity
+  region: emerging
+  acc_dist: ACC
+  ter: 0.0018
+  tickers:
+  - SEMA.L
+  - IQQE.DE
+- isin: IE00BTJRMP35
+  name: Xtrackers MSCI EM (Acc)
+  category: Emerging Markets
+  asset_class: equity
+  region: emerging
+  acc_dist: ACC
+  ter: 0.0018
+  tickers:
+  - XMME.DE
+  - XMEM.L
+- isin: IE00B3VVMM84
+  name: Vanguard FTSE Emerging Markets (Dist)
+  category: Emerging Markets
+  asset_class: equity
+  region: emerging
+  acc_dist: DIST
+  ter: 0.0022
+  tickers:
+  - VFEM.L
+  - VDEM.DE
+- isin: IE00BMG6Z448
+  name: iShares MSCI EM ex-China (Acc)
+  category: Emerging Markets
+  asset_class: equity
+  region: emerging
+  acc_dist: ACC
+  ter: 0.0018
+  tickers:
+  - EMXC.L
+- isin: IE00BF4RFH31
+  name: iShares MSCI World Small Cap (Acc)
+  category: Small Cap
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0035
+  tickers:
+  - WSML.L
+  - IUSN.DE
+- isin: IE00BCBJG560
+  name: SPDR MSCI World Small Cap (Acc)
+  category: Small Cap
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.0045
+  tickers:
+  - ZPRS.DE
+  - WOSC.L
+- isin: IE00B48X4842
+  name: iShares MSCI EM Small Cap (Dist)
+  category: Small Cap
+  asset_class: equity
+  region: emerging
+  acc_dist: DIST
+  ter: 0.0074
+  tickers:
+  - IEMS.L
+  - SEMS.DE
+- isin: IE00BP3QZ825
+  name: iShares Edge MSCI World Momentum (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - IWMO.L
+  - IS3R.DE
+- isin: IE00BP3QZ601
+  name: iShares Edge MSCI World Quality (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - IWQU.L
+  - IS3Q.DE
+- isin: IE00BP3QZB59
+  name: iShares Edge MSCI World Value (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - IWVL.L
+  - IS3S.DE
+- isin: IE00BP3QZD73
+  name: iShares Edge MSCI World Size (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - IWSZ.L
+- isin: IE00B8FHGS14
+  name: iShares Edge MSCI World Min Vol (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - MVOL.L
+  - MINV.DE
+- isin: IE00BZ0PKT83
+  name: iShares Edge MSCI World Multifactor (Acc)
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.005
+  tickers:
+  - FSWD.L
+  - IFSW.DE
+- isin: IE00BSPLC298
+  name: SPDR MSCI USA Small Cap Value Weighted
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: us
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - ZPRV.DE
+  - USSC.L
+- isin: IE00BSPLC413
+  name: SPDR MSCI Europe Small Cap Value Weighted
+  category: Factor / Smart Beta
+  asset_class: equity
+  region: europe
+  acc_dist: ACC
+  ter: 0.003
+  tickers:
+  - ZPRX.DE
+  - ESCV.L
+- isin: IE00B8GKDB10
+  name: Vanguard FTSE All-World High Div (Dist)
+  category: Dividend
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0029
+  tickers:
+  - VHYL.L
+  - VGWD.DE
+- isin: IE00B9CQXS71
+  name: SPDR S&P Global Dividend Aristocrats
+  category: Dividend
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0045
+  tickers:
+  - ZPRG.DE
+  - GBDV.L
+- isin: DE000A0F5UH1
+  name: iShares STOXX Global Select Dividend 100
+  category: Dividend
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0046
+  tickers:
+  - ISPA.DE
+- isin: IE00BYXVGZ48
+  name: Fidelity Global Quality Income (Acc)
+  category: Dividend
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - FGQI.L
+  - FGEG.DE
+- isin: IE00B1XNHC34
+  name: iShares Global Clean Energy
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0065
+  tickers:
+  - INRG.L
+  - IQQH.DE
+- isin: IE00BGV5VN51
+  name: Xtrackers AI & Big Data (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0035
+  tickers:
+  - XAIX.DE
+  - XAIX.L
+- isin: IE00BDVPNG13
+  name: WisdomTree AI (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - WTAI.L
+  - WTI2.DE
+- isin: IE00BMC38736
+  name: VanEck Semiconductor (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0035
+  tickers:
+  - SMH.L
+  - VVSM.DE
+- isin: IE00BYZK4552
+  name: iShares Automation & Robotics (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - RBOT.L
+  - 2B76.DE
+- isin: IE00BYZK4669
+  name: iShares Digitalisation (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - DGTL.L
+  - 2B77.DE
+- isin: IE00BYZK4776
+  name: iShares Healthcare Innovation (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - HEAL.L
+  - 2B78.DE
+- isin: IE00B1TXK627
+  name: iShares Global Water (Dist)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: DIST
+  ter: 0.0065
+  tickers:
+  - IH2O.L
+  - DXGW.DE
+- isin: IE00BGL86Z12
+  name: iShares Electric Vehicles & Driving Tech (Acc)
+  category: Sector & Thematic
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.004
+  tickers:
+  - ECAR.L
+  - IEVD.DE
+- isin: IE00B4L5YX21
+  name: iShares Core MSCI Japan (Acc)
+  category: Regional / Country
+  asset_class: equity
+  region: japan
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SJPA.L
+  - IJPA.L
+  - EUNN.DE
+- isin: IE00B52MJY50
+  name: iShares Core MSCI Pacific ex-Japan (Acc)
+  category: Regional / Country
+  asset_class: equity
+  region: pacific
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - CPJ1.L
+  - SXR1.DE
+- isin: IE00BZCQB185
+  name: iShares MSCI India (Acc)
+  category: Regional / Country
+  asset_class: equity
+  region: india
+  acc_dist: ACC
+  ter: 0.0065
+  tickers:
+  - QDV5.DE
+  - NDIA.L
+- isin: IE00BHZRR147
+  name: Franklin FTSE India (Acc)
+  category: Regional / Country
+  asset_class: equity
+  region: india
+  acc_dist: ACC
+  ter: 0.0019
+  tickers:
+  - FLXI.L
+  - FLXI.DE
+- isin: IE00BJ5JPG56
+  name: iShares MSCI China (Acc)
+  category: Regional / Country
+  asset_class: equity
+  region: china
+  acc_dist: ACC
+  ter: 0.0028
+  tickers:
+  - ICGA.L
+  - 36BZ.DE
+- isin: IE00BDBRDM35
+  name: iShares Core Global Aggregate Bond EUR-H (Acc)
+  category: Bonds
+  asset_class: bond
+  region: world
+  acc_dist: ACC
+  ter: 0.001
+  tickers:
+  - EUNA.DE
+  - AGGH.L
+- isin: IE00B3F81409
+  name: iShares Core Global Aggregate Bond (Dist)
+  category: Bonds
+  asset_class: bond
+  region: world
+  acc_dist: DIST
+  ter: 0.001
+  tickers:
+  - AGGG.L
+  - SAGG.L
+- isin: IE00BG47KH54
+  name: Vanguard Global Aggregate Bond EUR-H (Acc)
+  category: Bonds
+  asset_class: bond
+  region: world
+  acc_dist: ACC
+  ter: 0.001
+  tickers:
+  - VAGF.L
+  - VGEA.DE
+- isin: IE00B4WXJJ64
+  name: iShares Core Euro Govt Bond (Dist)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: DIST
+  ter: 0.0009
+  tickers:
+  - SEGA.L
+  - EUNH.DE
+- isin: IE00B3F81R35
+  name: iShares Core Euro Corp Bond (Dist)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: DIST
+  ter: 0.002
+  tickers:
+  - IEAC.L
+  - EUN5.DE
+- isin: IE00B66F4759
+  name: iShares Euro High Yield Corp Bond (Dist)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: DIST
+  ter: 0.005
+  tickers:
+  - IHYG.L
+  - EUNW.DE
+- isin: IE00B1FZS798
+  name: iShares $ Treasury 7-10y (Dist)
+  category: Bonds
+  asset_class: bond
+  region: us
+  acc_dist: DIST
+  ter: 0.0007
+  tickers:
+  - IBTM.L
+  - IDTM.DE
+- isin: IE00B14X4S71
+  name: iShares $ Treasury 1-3y (Dist)
+  category: Bonds
+  asset_class: bond
+  region: us
+  acc_dist: DIST
+  ter: 0.0007
+  tickers:
+  - IBTS.L
+  - IBTA.DE
+- isin: IE00B0M62X26
+  name: iShares Euro Inflation Linked Govt Bond
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: DIST
+  ter: 0.0009
+  tickers:
+  - IBCI.DE
+  - IBCI.L
+- isin: IE00B4ND3602
+  name: iShares Physical Gold ETC
+  category: Gold & Commodities
+  asset_class: commodity
+  region: global
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SGLN.L
+  - IGLN.L
+  - EGLN.DE
+- isin: IE00B579F325
+  name: Invesco Physical Gold ETC
+  category: Gold & Commodities
+  asset_class: commodity
+  region: global
+  acc_dist: ACC
+  ter: 0.0012
+  tickers:
+  - SGLD.L
+  - 8PSG.DE
+- isin: DE000A0S9GB0
+  name: Xetra-Gold ETC
+  category: Gold & Commodities
+  asset_class: commodity
+  region: global
+  acc_dist: ACC
+  ter: 0.0
+  tickers:
+  - 4GLD.DE
+- isin: IE00B4NCWG09
+  name: iShares Physical Silver ETC
+  category: Gold & Commodities
+  asset_class: commodity
+  region: global
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - SSLN.L
+  - ISLN.DE
+- isin: IE00BDFL4P12
+  name: iShares Diversified Commodity Swap (Acc)
+  category: Gold & Commodities
+  asset_class: commodity
+  region: global
+  acc_dist: ACC
+  ter: 0.0019
+  tickers:
+  - ICOM.L
+  - SXRS.DE
+- isin: IE00B1FZS350
+  name: iShares Developed Markets Property Yield (Dist)
+  category: Real Estate
+  asset_class: reit
+  region: developed
+  acc_dist: DIST
+  ter: 0.0059
+  tickers:
+  - IWDP.L
+  - IQQ6.DE
+- isin: IE00B0M63284
+  name: iShares European Property Yield (Dist)
+  category: Real Estate
+  asset_class: reit
+  region: europe
+  acc_dist: DIST
+  ter: 0.004
+  tickers:
+  - IPRP.L
+  - IQQP.DE
+- isin: IE00BMVB5R75
+  name: Vanguard LifeStrategy 60% Equity (Acc)
+  category: Multi-Asset
+  asset_class: multi
+  region: world
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - VNGA60.MI
+  - VNGA60.DE
+- isin: IE00BMVB5P51
+  name: Vanguard LifeStrategy 80% Equity (Acc)
+  category: Multi-Asset
+  asset_class: multi
+  region: world
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - VNGA80.MI
+  - VNGA80.DE
+- isin: IE00BMVB5M21
+  name: Vanguard LifeStrategy 100% Equity (Acc)
+  category: Multi-Asset
+  asset_class: multi
+  region: world
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - VNGA100.MI
+  - VNGA100.DE
+- isin: IE00BMVB5K07
+  name: Vanguard LifeStrategy 40% Equity (Acc)
+  category: Multi-Asset
+  asset_class: multi
+  region: world
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - VNGA40.MI
+  - VNGA40.DE
+- isin: IE00BYX2JD69
+  name: iShares MSCI World SRI (Acc)
+  category: ESG / SRI
+  asset_class: equity
+  region: developed
+  acc_dist: ACC
+  ter: 0.002
+  tickers:
+  - SUSW.L
+  - 2B7K.DE
+- isin: IE00BNG8L385
+  name: Vanguard ESG Global All Cap (Acc)
+  category: ESG / SRI
+  asset_class: equity
+  region: world
+  acc_dist: ACC
+  ter: 0.0024
+  tickers:
+  - V3AB.L
+  - V3AA.L
+- isin: IE00BFNM3P36
+  name: iShares MSCI EM SRI (Acc)
+  category: ESG / SRI
+  asset_class: equity
+  region: emerging
+  acc_dist: ACC
+  ter: 0.0025
+  tickers:
+  - SUSM.L
+  - 2B7L.DE

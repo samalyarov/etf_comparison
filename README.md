@@ -3,8 +3,8 @@
 A local, personal tool to gather, store, and compare **UCITS ETFs** (returns, cost, risk,
 structure) to support buy-and-hold investing through Interactive Brokers. I made it for personal use (looking into investment options right now) and the thing is ~95% vibe-coded, so if you somehow happen upon this page - judge it as such.
 
-See **[architecture.md](architecture.md)** for the full plan, data-source research, schema,
-and roadmap.
+The architecture is summarised in the [diagram below](#architecture); deeper working notes
+live in a local, git-ignored `brain/` knowledge base.
 
 ## What it does
 
@@ -25,6 +25,60 @@ and roadmap.
 
 The ETF universe is generated + verified against Yahoo by `scripts/build_watchlist.py`
 (re-run it to extend the list). Charts use a colourblind-validated palette.
+
+## Architecture
+
+Local-first, single-user, and built as four clean layers — **ingest → store → analyse →
+present**. Everything runs on your machine; the network is touched only during a deliberate
+*fetch*. Prices land in one **SQLite** file you can open with any SQL client, and every
+analytic (returns, risk, correlation, DCA) is computed on top of that raw layer — never
+written back into it. A separate, self-correcting pipeline turns a hand-maintained candidate
+list into a *verified* watchlist by probing which Yahoo listings actually return data.
+
+```mermaid
+flowchart TD
+    CAND["scripts/candidates.yaml<br/>(hand-maintained universe)"] --> BW["build_watchlist.py<br/>(probe Yahoo listings)"]
+    BW --> WL["watchlist.yaml<br/>(verified)"]
+
+    subgraph SRC["Data sources — network"]
+        Y["yfinance (primary)"]
+        TI["Tiingo (fallback)"]
+        ST["Stooq (fallback)"]
+    end
+
+    subgraph ING["Ingest — src/etf/ingest"]
+        AD["Source adapters<br/>one common interface"]
+        ORC["Orchestrator + CLI<br/>python -m etf.ingest"]
+    end
+
+    DB[("SQLite<br/>data/etf.db<br/>instruments · prices ·<br/>distributions · fund_facts · log")]
+
+    subgraph ANA["Analyse — src/etf"]
+        MET["metrics.py<br/>returns · risk · correlation"]
+        STR["strategy.py<br/>DCA backtest · XIRR"]
+    end
+
+    subgraph PRE["Present"]
+        UI["Streamlit app · app.py<br/>Compare · Screener · Detail ·<br/>Strategy · Data"]
+        RAW["Raw SQL / pandas<br/>(any DB client)"]
+    end
+
+    THEME["theme.py<br/>light / Tokyo Night<br/>validated palette"]
+
+    WL --> ORC
+    Y --> AD
+    TI --> AD
+    ST --> AD
+    AD --> ORC --> DB
+    DB --> MET --> UI
+    DB --> STR --> UI
+    DB --> RAW
+    THEME -.-> UI
+```
+
+Layer boundaries map to modules: `ingest/` (adapters + orchestration), `db.py` + `data.py`
+(storage + queries), `metrics.py` + `strategy.py` (analytics), `app.py` + `theme.py` (UI).
+Swapping a data source, adding a metric, or restyling the UI each touches exactly one layer.
 
 ## Setup
 
@@ -49,8 +103,9 @@ python -m etf.ingest --sources tiingo,yahoo,stooq   # change source priority
 streamlit run src/etf/app.py
 ```
 
-Add/remove ETFs by editing [watchlist.yaml](watchlist.yaml) (keyed by ISIN; `ticker` is the
-Yahoo/exchange symbol, e.g. `.DE` Xetra, `.L` London, `.AS` Amsterdam).
+Add/remove ETFs by editing [scripts/candidates.yaml](scripts/candidates.yaml) (each entry
+lists candidate Yahoo tickers — `.DE` Xetra, `.L` London, `.AS` Amsterdam), then run
+`python scripts/build_watchlist.py` to re-verify and regenerate `watchlist.yaml`.
 
 ## Raw data access
 

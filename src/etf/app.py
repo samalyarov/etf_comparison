@@ -20,8 +20,7 @@ from streamlit_option_menu import option_menu
 from etf import data, metrics, strategy, theme
 from etf.config import DB_PATH
 
-st.set_page_config(page_title="ETF Comparison", page_icon="📊", layout="wide")
-st.markdown(theme.CUSTOM_CSS, unsafe_allow_html=True)
+st.set_page_config(page_title="ETF Comparison", layout="wide")
 
 
 # --------------------------------------------------------------------------- data access
@@ -72,11 +71,28 @@ etfs = get_etfs()
 n_etfs = len(etfs)
 n_cats = etfs["category"].nunique() if not etfs.empty else 0
 
-left, right = st.columns([3, 2])
+if "theme" not in st.session_state:
+    st.session_state.theme = theme.DEFAULT_THEME
+
+left, right = st.columns([3, 1])
 with left:
-    st.markdown('<p class="app-title">📊 ETF Comparison</p>'
+    st.markdown('<p class="app-title">ETF Comparison</p>'
                 '<p class="app-sub">Local research desk for UCITS ETFs · '
                 f'{n_etfs} funds across {n_cats} categories</p>', unsafe_allow_html=True)
+with right:
+    choice = st.radio("Theme", list(theme.THEMES.keys()),
+                      index=list(theme.THEMES.keys()).index(st.session_state.theme),
+                      horizontal=True, label_visibility="collapsed")
+    st.session_state.theme = choice or st.session_state.theme
+
+T = theme.THEMES[st.session_state.theme]
+st.markdown(theme.css(T), unsafe_allow_html=True)
+
+
+def sf(fig, **kw):
+    """Style a Plotly figure with the active theme."""
+    return theme.style_fig(fig, T, **kw)
+
 
 _PAGE_NAMES = ["Compare", "Screener", "Detail", "Strategy", "Data"]
 _forced = os.environ.get("ETF_FORCE_PAGE")  # test hook: exercise any page via AppTest
@@ -86,7 +102,7 @@ else:
     page = option_menu(
         None, _PAGE_NAMES,
         icons=["bar-chart-line", "funnel", "graph-up", "calculator", "database"],
-        orientation="horizontal", default_index=0, styles=theme.nav_styles(),
+        orientation="horizontal", default_index=0, styles=theme.nav_styles(T),
     ) or "Compare"
 
 if etfs.empty:
@@ -131,8 +147,8 @@ def render_compare():
             continue
         norm = metrics.normalize_to_100(s)
         fig.add_trace(go.Scatter(x=norm.index, y=norm.values, name=ticker_by_isin[i],
-                                 line=dict(color=theme.series_color(idx), width=2)))
-    theme.style_fig(fig, height=380)
+                                 line=dict(color=T.color(idx), width=2)))
+    sf(fig, height=380)
     fig.update_yaxes(title="Indexed to 100")
     st.plotly_chart(fig, width="stretch")
 
@@ -146,8 +162,8 @@ def render_compare():
             if yr.empty:
                 continue
             yfig.add_trace(go.Bar(x=yr.index.astype(str), y=yr.values, name=ticker_by_isin[i],
-                                  marker_color=theme.series_color(idx)))
-        theme.style_fig(yfig, height=320, hovermode="x")
+                                  marker_color=T.color(idx)))
+        sf(yfig, height=320, hovermode="x")
         yfig.update_layout(barmode="group", bargap=0.25)
         yfig.update_yaxes(tickformat=".0%")
         st.plotly_chart(yfig, width="stretch")
@@ -160,8 +176,8 @@ def render_compare():
                 continue
             dd = metrics.drawdown_series(s)
             dfig.add_trace(go.Scatter(x=dd.index, y=dd.values, name=ticker_by_isin[i],
-                                      line=dict(color=theme.series_color(idx), width=1.5)))
-        theme.style_fig(dfig, height=320, showlegend=False)
+                                      line=dict(color=T.color(idx), width=1.5)))
+        sf(dfig, height=320, showlegend=False)
         dfig.update_yaxes(tickformat=".0%")
         st.plotly_chart(dfig, width="stretch")
 
@@ -178,11 +194,11 @@ def render_compare():
             sfig.add_trace(go.Scatter(
                 x=[metrics.annualized_volatility(s)], y=[metrics.cagr(s)],
                 mode="markers+text", text=[ticker_by_isin[i]], textposition="top center",
-                textfont=dict(size=10, color=theme.INK_2), name=ticker_by_isin[i],
-                marker=dict(size=13, color=theme.series_color(idx),
-                            line=dict(width=1.5, color="#ffffff")),
+                textfont=dict(size=10, color=T.ink2), name=ticker_by_isin[i],
+                marker=dict(size=13, color=T.color(idx),
+                            line=dict(width=1.5, color=T.surface)),
                 hovertemplate=f"{name_by_isin[i]}<br>vol %{{x:.1%}} · CAGR %{{y:.1%}}<extra></extra>"))
-        theme.style_fig(sfig, height=320, hovermode="closest", showlegend=False)
+        sf(sfig, height=320, hovermode="closest", showlegend=False)
         sfig.update_xaxes(title="Volatility (ann.)", tickformat=".0%")
         sfig.update_yaxes(title="CAGR", tickformat=".0%")
         st.plotly_chart(sfig, width="stretch")
@@ -194,10 +210,10 @@ def render_compare():
             corr = corr.rename(index=ticker_by_isin, columns=ticker_by_isin)
             heat = go.Figure(go.Heatmap(
                 z=corr.values, x=corr.columns, y=corr.index, zmin=-1, zmax=1, zmid=0,
-                colorscale=theme.DIVERGING, text=corr.round(2).values,
+                colorscale=T.diverging, text=corr.round(2).values,
                 texttemplate="%{text}", textfont=dict(size=10),
                 colorbar=dict(thickness=10, len=0.8)))
-            theme.style_fig(heat, height=320, showlegend=False, hovermode=False)
+            sf(heat, height=320, showlegend=False, hovermode=False)
             st.plotly_chart(heat, width="stretch")
 
     # --- Tables ---
@@ -251,17 +267,17 @@ def render_screener():
     st.markdown('<p class="section-label">Risk vs return — universe map</p>',
                 unsafe_allow_html=True)
     classes = sorted(sdf["Class"].dropna().unique())
-    cls_color = {c: theme.series_color(i) for i, c in enumerate(classes)}
+    cls_color = {c: T.color(i) for i, c in enumerate(classes)}
     sfig = go.Figure()
     for c in classes:
         sub = sdf[(sdf["Class"] == c) & sdf["CAGR"].notna() & sdf["Vol"].notna()]
         sfig.add_trace(go.Scatter(
             x=sub["Vol"], y=sub["CAGR"], mode="markers", name=c,
-            marker=dict(size=10, color=cls_color[c], line=dict(width=1, color="#ffffff")),
+            marker=dict(size=10, color=cls_color[c], line=dict(width=1, color=T.surface)),
             customdata=sub[["Name", "Ticker"]].values,
             hovertemplate="%{customdata[0]} (%{customdata[1]})<br>"
                           "vol %{x:.1%} · CAGR %{y:.1%}<extra></extra>"))
-    theme.style_fig(sfig, height=360, hovermode="closest")
+    sf(sfig, height=360, hovermode="closest")
     sfig.update_xaxes(title="Volatility (ann.)", tickformat=".0%")
     sfig.update_yaxes(title="CAGR", tickformat=".0%")
     st.plotly_chart(sfig, width="stretch")
@@ -305,9 +321,9 @@ def render_detail():
 
     st.markdown('<p class="section-label">Price history · adjusted close</p>',
                 unsafe_allow_html=True)
-    pfig = go.Figure(go.Scatter(x=s.index, y=s.values, line=dict(color=theme.SERIES[0], width=1.8),
+    pfig = go.Figure(go.Scatter(x=s.index, y=s.values, line=dict(color=T.series[0], width=1.8),
                                 fill="tozeroy", fillcolor="rgba(42,120,214,0.06)"))
-    theme.style_fig(pfig, height=300, showlegend=False)
+    sf(pfig, height=300, showlegend=False)
     st.plotly_chart(pfig, width="stretch")
 
     a, b = st.columns(2)
@@ -317,9 +333,9 @@ def render_detail():
         if not mm.empty:
             hfig = go.Figure(go.Heatmap(
                 z=mm.values, x=[calendar.month_abbr[c] for c in mm.columns],
-                y=mm.index.astype(str), colorscale=theme.DIVERGING, zmid=0,
+                y=mm.index.astype(str), colorscale=T.diverging, zmid=0,
                 colorbar=dict(thickness=10, len=0.9, tickformat=".0%")))
-            theme.style_fig(hfig, height=340, showlegend=False, hovermode=False)
+            sf(hfig, height=340, showlegend=False, hovermode=False)
             st.plotly_chart(hfig, width="stretch")
     with b:
         st.markdown('<p class="section-label">Rolling 3-month volatility (ann.)</p>',
@@ -327,8 +343,8 @@ def render_detail():
         rv = metrics.rolling_volatility(s).dropna()
         if not rv.empty:
             vfig = go.Figure(go.Scatter(x=rv.index, y=rv.values,
-                                        line=dict(color=theme.SERIES[5], width=1.5)))
-            theme.style_fig(vfig, height=340, showlegend=False)
+                                        line=dict(color=T.series[5], width=1.5)))
+            sf(vfig, height=340, showlegend=False)
             vfig.update_yaxes(tickformat=".0%")
             st.plotly_chart(vfig, width="stretch")
 
@@ -338,8 +354,8 @@ def render_detail():
         rr = metrics.rolling_returns(s, 1).dropna()
         if not rr.empty:
             rfig = go.Figure(go.Scatter(x=rr.index, y=rr.values,
-                                        line=dict(color=theme.SERIES[1], width=1.5)))
-            theme.style_fig(rfig, height=300, showlegend=False)
+                                        line=dict(color=T.series[1], width=1.5)))
+            sf(rfig, height=300, showlegend=False)
             rfig.update_yaxes(tickformat=".0%")
             st.plotly_chart(rfig, width="stretch")
     with d:
@@ -397,11 +413,11 @@ def render_strategy():
     tl = res.timeline
     gfig = go.Figure()
     gfig.add_trace(go.Scatter(x=tl.index, y=tl["value"], name="Portfolio value",
-                              line=dict(color=theme.SERIES[0], width=2),
+                              line=dict(color=T.series[0], width=2),
                               fill="tozeroy", fillcolor="rgba(42,120,214,0.08)"))
     gfig.add_trace(go.Scatter(x=tl.index, y=tl["invested"], name="Money invested",
-                              line=dict(color=theme.INK_2, width=1.5, dash="dot")))
-    theme.style_fig(gfig, height=380)
+                              line=dict(color=T.ink2, width=1.5, dash="dot")))
+    sf(gfig, height=380)
     st.plotly_chart(gfig, width="stretch")
 
     st.caption("DCA buys on the first trading day of each month. A negative gap between the "

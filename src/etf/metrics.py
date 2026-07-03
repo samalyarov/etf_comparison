@@ -39,6 +39,20 @@ def daily_returns(prices: pd.Series) -> pd.Series:
     return _clean(prices).pct_change().dropna()
 
 
+def has_clean_history(prices: pd.Series, max_daily_move: float = 0.5) -> bool:
+    """Cheap sanity check that a price series isn't corrupted.
+
+    A genuine ETF never moves more than ~15-20% in a single day; a swing beyond
+    ``max_daily_move`` (default 50%) signals a bad split/adjustment or a mis-scaled
+    (GBX vs GBP) series that would otherwise produce nonsense returns. Returns ``False``
+    for such series so callers can exclude them from rankings.
+    """
+    r = daily_returns(prices)
+    if r.empty:
+        return False
+    return bool(r.abs().max() <= max_daily_move)
+
+
 def log_returns(prices: pd.Series) -> pd.Series:
     """Daily log returns."""
     s = _clean(prices)

@@ -1,6 +1,6 @@
-# Streamlit base theme = Tokyo Night (the default in-app theme).
-# The in-app theme toggle reskins backgrounds, cards, and charts at runtime; canvas
-# widgets (dataframes) follow this static base, so they look best in Tokyo Night.
+# Streamlit base theme = Dark (Tokyo Night), the app's default in-app theme.
+# The in-app Light/Dark toggle reskins backgrounds, cards, charts, widgets, and tables at
+# runtime. Tables are rendered as themed HTML (not st.dataframe) so they follow both modes.
 
 [theme]
 base = "dark"

@@ -66,6 +66,35 @@ def trim(s: pd.Series, lookback: str) -> pd.Series:
     return s
 
 
+@st.cache_data(ttl=300)
+def get_recommended(isins: tuple[str, ...], years: int = 10, n: int = 3):
+    """Rank the universe by total return over the last ``years`` and return the top ``n``.
+
+    Returns ``(top_isins, leaderboard_df)``. Only ETFs with a full ``years``-year history
+    are eligible for the ranking (a fair like-for-like window); if fewer than ``n`` qualify
+    it falls back to the best full-history CAGR to fill the remaining slots.
+    """
+    period = f"{years}Y"
+    rows = []
+    for i in isins:
+        s = get_prices(i)
+        if s.empty or not metrics.has_clean_history(s):
+            continue  # skip funds with corrupt price series (bad splits/adjustments)
+        w = trim(s, period)
+        rows.append({"isin": i, "ret": metrics.period_return(s, period),
+                     "cagr": metrics.cagr(w), "vol": metrics.annualized_volatility(w),
+                     "maxdd": metrics.max_drawdown(w)})
+    board = pd.DataFrame(rows)
+    if board.empty:
+        return [], board
+    board = board.sort_values("ret", ascending=False, na_position="last").reset_index(drop=True)
+    top = board.dropna(subset=["ret"]).head(n)["isin"].tolist()
+    if len(top) < n:  # not enough full-history funds — fill by best CAGR
+        extra = board[~board["isin"].isin(top)].sort_values("cagr", ascending=False)
+        top += extra.head(n - len(top))["isin"].tolist()
+    return top, board
+
+
 # --------------------------------------------------------------------------- masthead + nav
 etfs = get_etfs()
 n_etfs = len(etfs)
@@ -94,16 +123,34 @@ def sf(fig, **kw):
     return theme.style_fig(fig, T, **kw)
 
 
-_PAGE_NAMES = ["Compare", "Screener", "Detail", "Strategy", "Data"]
+def render_table(obj, *, hide_index: bool = False, fmt: dict | None = None,
+                 max_height: int | None = None):
+    """Render a DataFrame (or Styler) as a themed HTML table that follows the toggle.
+
+    ``st.dataframe`` paints on a canvas tied to the static base theme, so it can't switch
+    to Light at runtime. HTML tables can, and give exact colour control in both modes.
+    """
+    styler = obj if hasattr(obj, "set_table_styles") else obj.style
+    if fmt:
+        styler = styler.format(fmt, na_rep="—")
+    styler = styler.set_table_styles(theme.table_styles(T))
+    if hide_index:
+        styler = styler.hide(axis="index")
+    style = f' style="max-height:{max_height}px;overflow-y:auto"' if max_height else ""
+    st.markdown(f'<div class="tbl-wrap"{style}>{styler.to_html()}</div>',
+                unsafe_allow_html=True)
+
+
+_PAGE_NAMES = ["Recommended", "Compare", "Screener", "Detail", "Strategy", "Data"]
 _forced = os.environ.get("ETF_FORCE_PAGE")  # test hook: exercise any page via AppTest
 if _forced in _PAGE_NAMES:
     page = _forced
 else:
     page = option_menu(
         None, _PAGE_NAMES,
-        icons=["bar-chart-line", "funnel", "graph-up", "calculator", "database"],
+        icons=["star", "bar-chart-line", "funnel", "graph-up", "calculator", "database"],
         orientation="horizontal", default_index=0, styles=theme.nav_styles(T),
-    ) or "Compare"
+    ) or "Recommended"
 
 if etfs.empty:
     st.warning("No data yet. Open the **Data** tab and fetch, or run `python -m etf.ingest`.")
@@ -112,11 +159,18 @@ if etfs.empty:
 name_by_isin = dict(zip(etfs["isin"], etfs["name"]))
 ticker_by_isin = dict(zip(etfs["isin"], etfs["ticker"]))
 ter_by_isin = dict(zip(etfs["isin"], etfs["ter"]))
+cat_by_isin = dict(zip(etfs["isin"], etfs["category"]))
 label_by_isin = {r["isin"]: f"{r['name']}  ·  {r['ticker']}" for _, r in etfs.iterrows()}
 isin_by_label = {v: k for k, v in label_by_isin.items()}
+
+# Top performers over the last 10 years — used as the app-wide default selection.
+REC_ISINS, REC_BOARD = get_recommended(tuple(etfs["isin"]))
+rec_labels = [label_by_isin[i] for i in REC_ISINS if i in label_by_isin]
 DEFAULT_TICKERS = ["VWCE.DE", "CSPX.L", "IWDA.AS", "EIMI.L"]
-default_labels = [label_by_isin[i] for i, t in ticker_by_isin.items()
-                  if t in DEFAULT_TICKERS and i in label_by_isin]
+_fallback_labels = [label_by_isin[i] for i, t in ticker_by_isin.items()
+                    if t in DEFAULT_TICKERS and i in label_by_isin]
+# Everything defaults to the recommended top-3 (falling back to broad-market staples).
+default_labels = rec_labels or _fallback_labels
 
 
 # --------------------------------------------------------------------------- Compare
@@ -230,9 +284,8 @@ def render_compare():
                      "TER": summ.get("ter"), "CAGR–TER": summ.get("cagr_after_ter")})
     mdf = pd.DataFrame(rows).set_index("ETF")
     pcols = ["CAGR", "Total", "Volatility", "Max DD", "TER", "CAGR–TER"]
-    st.dataframe(mdf.style.format({**{c: "{:.2%}" for c in pcols},
-                                   "Sharpe": "{:.2f}", "Sortino": "{:.2f}"}, na_rep="—"),
-                 width="stretch")
+    render_table(mdf, fmt={**{c: "{:.2%}" for c in pcols},
+                           "Sharpe": "{:.2f}", "Sortino": "{:.2f}"})
 
     st.markdown('<p class="section-label">Trailing total returns</p>', unsafe_allow_html=True)
     pr_rows = []
@@ -241,8 +294,7 @@ def render_compare():
         pr = {"ETF": name_by_isin[i], **pr}
         pr_rows.append(pr)
     prdf = pd.DataFrame(pr_rows).set_index("ETF")
-    st.dataframe(prdf.style.format({c: "{:.2%}" for c in prdf.columns}, na_rep="—"),
-                 width="stretch")
+    render_table(prdf, fmt={c: "{:.2%}" for c in prdf.columns})
 
 
 # --------------------------------------------------------------------------- Screener
@@ -282,12 +334,12 @@ def render_screener():
     sfig.update_yaxes(title="CAGR", tickformat=".0%")
     st.plotly_chart(sfig, width="stretch")
 
-    st.markdown('<p class="section-label">All funds — click a header to sort</p>',
+    st.markdown('<p class="section-label">All funds — ranked by CAGR</p>',
                 unsafe_allow_html=True)
-    st.dataframe(
-        sdf.style.format({"TER": "{:.2%}", "CAGR": "{:.2%}", "Vol": "{:.2%}",
-                          "Max DD": "{:.2%}", "Sharpe": "{:.2f}"}, na_rep="—"),
-        width="stretch", hide_index=True, height=460)
+    sdf = sdf.sort_values("CAGR", ascending=False, na_position="last").reset_index(drop=True)
+    render_table(sdf, hide_index=True, max_height=460,
+                 fmt={"TER": "{:.2%}", "CAGR": "{:.2%}", "Vol": "{:.2%}",
+                      "Max DD": "{:.2%}", "Sharpe": "{:.2f}"})
 
 
 # --------------------------------------------------------------------------- Detail
@@ -364,7 +416,7 @@ def render_detail():
         if dists.empty:
             st.caption("None recorded — accumulating ETF, or not yet fetched.")
         else:
-            st.dataframe(dists.tail(12), width="stretch")
+            render_table(dists.tail(12), max_height=340)
 
 
 # --------------------------------------------------------------------------- Strategy (DCA)
@@ -439,13 +491,62 @@ def render_data():
 
     st.markdown('<p class="section-label">Coverage &amp; freshness</p>', unsafe_allow_html=True)
     cov = etfs[["name", "ticker", "category", "first_date", "last_date", "n_prices"]].copy()
-    st.dataframe(cov, width="stretch", hide_index=True, height=380)
+    render_table(cov, hide_index=True, max_height=380)
 
     st.markdown('<p class="section-label">Recent ingest log</p>', unsafe_allow_html=True)
-    st.dataframe(data.ingest_log(60), width="stretch", hide_index=True)
+    render_table(data.ingest_log(60), hide_index=True, max_height=380)
+
+
+# --------------------------------------------------------------------------- Recommended
+def render_recommended():
+    st.markdown('<p class="section-label">Top performers · total return over the last 10 years</p>',
+                unsafe_allow_html=True)
+    if not REC_ISINS:
+        st.info("Not enough price history to rank yet. Fetch data on the **Data** tab.")
+        return
+    st.caption("The three UCITS ETFs with the highest total return over the last 10 years "
+               "(dividends reinvested). They are the default selection across every tab. "
+               "Past performance does not predict future returns.")
+
+    board = REC_BOARD.set_index("isin")
+    cols = st.columns(len(REC_ISINS))
+    for col, i in zip(cols, REC_ISINS):
+        r = board.loc[i]
+        col.metric(ticker_by_isin[i], pct(r["ret"]),
+                   delta=f"CAGR {pct(r['cagr'])}", delta_color="off")
+        col.caption(name_by_isin[i])
+
+    st.markdown('<p class="section-label">Growth of 100 · last 10 years</p>',
+                unsafe_allow_html=True)
+    fig = go.Figure()
+    for idx, i in enumerate(REC_ISINS):
+        s = trim(get_prices(i), "10Y")
+        if s.empty:
+            continue
+        norm = metrics.normalize_to_100(s)
+        fig.add_trace(go.Scatter(x=norm.index, y=norm.values, name=ticker_by_isin[i],
+                                 line=dict(color=T.color(idx), width=2)))
+    sf(fig, height=380)
+    fig.update_yaxes(title="Indexed to 100")
+    st.plotly_chart(fig, width="stretch")
+
+    st.markdown('<p class="section-label">10-year leaderboard</p>', unsafe_allow_html=True)
+    lb = REC_BOARD.dropna(subset=["ret"]).head(15).copy()
+    lb.insert(0, "Rank", range(1, len(lb) + 1))
+    lb["ETF"] = lb["isin"].map(name_by_isin)
+    lb["Ticker"] = lb["isin"].map(ticker_by_isin)
+    lb["Category"] = lb["isin"].map(cat_by_isin)
+    disp = lb[["Rank", "ETF", "Ticker", "Category", "ret", "cagr", "vol", "maxdd"]].rename(
+        columns={"ret": "10Y return", "cagr": "CAGR", "vol": "Volatility", "maxdd": "Max DD"})
+    render_table(disp, hide_index=True,
+                 fmt={"10Y return": "{:.2%}", "CAGR": "{:.2%}",
+                      "Volatility": "{:.2%}", "Max DD": "{:.2%}"})
+    st.caption("Ranked by total return over the last 10 years; only funds with a full "
+               "10-year history are eligible for the ranking.")
 
 
 # --------------------------------------------------------------------------- router
-PAGES = {"Compare": render_compare, "Screener": render_screener, "Detail": render_detail,
+PAGES = {"Recommended": render_recommended, "Compare": render_compare,
+         "Screener": render_screener, "Detail": render_detail,
          "Strategy": render_strategy, "Data": render_data}
-PAGES.get(page, render_compare)()
+PAGES.get(page, render_recommended)()

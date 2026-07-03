@@ -13,10 +13,13 @@ live in a local, git-ignored `brain/` knowledge base.
   local **SQLite** database.
 - **Computes** returns (trailing, CAGR, calendar-year, rolling), volatility (incl. rolling),
   Sharpe/Sortino, max drawdown, correlation, and DCA backtests — all total-return basis.
-- **Presents** it in a themed **Streamlit** UI with a top nav and five pages:
+- **Presents** it in a themed **Streamlit** UI (switchable **Light / Dark** — a Tokyo Night
+  palette) with a top nav and six pages:
+  - **Recommended** — the three ETFs with the highest total return over the last 10 years
+    (the app-wide default selection), a growth chart, and a 10-year leaderboard.
   - **Compare** — growth of 100, calendar-year & drawdown, risk-vs-return scatter,
     correlation heatmap, risk/return + trailing-return tables.
-  - **Screener** — a risk-return map of the whole universe + a sortable, filterable table.
+  - **Screener** — a risk-return map of the whole universe + a filterable table.
   - **Detail** — single-ETF price, monthly-return heatmap, rolling volatility/return.
   - **Strategy** — a dollar-cost-averaging backtest ("invest X/month for Y years") with
     final value, profit, money-multiple and XIRR.
@@ -59,11 +62,11 @@ flowchart TD
     end
 
     subgraph PRE["Present"]
-        UI["Streamlit app · app.py<br/>Compare · Screener · Detail ·<br/>Strategy · Data"]
+        UI["Streamlit app · app.py<br/>Recommended · Compare · Screener ·<br/>Detail · Strategy · Data"]
         RAW["Raw SQL / pandas<br/>(any DB client)"]
     end
 
-    THEME["theme.py<br/>light / Tokyo Night<br/>validated palette"]
+    THEME["theme.py<br/>Light / Dark (Tokyo Night)<br/>validated palette"]
 
     WL --> ORC
     Y --> AD

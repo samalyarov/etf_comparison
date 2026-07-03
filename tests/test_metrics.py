@@ -38,6 +38,13 @@ def test_max_drawdown():
     assert metrics.max_drawdown(s) == pytest.approx(-0.5)
 
 
+def test_has_clean_history_flags_bad_adjustment():
+    # A normal series passes; a ~100x GBX/GBP-style jump is rejected.
+    assert metrics.has_clean_history(_series([100, 101, 99, 102, 103]))
+    assert not metrics.has_clean_history(_series([2488, 23, 23, 22, 22]))
+    assert not metrics.has_clean_history(_series([100]))  # too short to judge
+
+
 def test_drawdown_series_non_positive():
     s = _series([100, 90, 120, 110])
     dd = metrics.drawdown_series(s)

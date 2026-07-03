@@ -198,3 +198,38 @@ def rolling_returns(prices: pd.Series, window_years: int = 1) -> pd.Series:
     if len(s) <= window:
         return pd.Series(dtype=float)
     return s / s.shift(window) - 1.0
+
+
+def rolling_volatility(prices: pd.Series, window: int = 63) -> pd.Series:
+    """Annualised rolling volatility (default window ~3 months of trading days)."""
+    r = daily_returns(prices)
+    if len(r) <= window:
+        return pd.Series(dtype=float)
+    return r.rolling(window).std(ddof=1) * np.sqrt(TRADING_DAYS)
+
+
+def calendar_year_returns(prices: pd.Series) -> pd.Series:
+    """Total return within each calendar year, indexed by year (int).
+
+    The first (typically partial) year is measured from the first available price.
+    """
+    s = _clean(prices)
+    if len(s) < 2:
+        return pd.Series(dtype=float)
+    year_end = s.resample("YE").last()
+    returns = year_end.pct_change()
+    returns.iloc[0] = year_end.iloc[0] / s.iloc[0] - 1.0
+    returns.index = returns.index.year
+    return returns
+
+
+def monthly_returns_matrix(prices: pd.Series) -> pd.DataFrame:
+    """Year x month (1-12) matrix of monthly total returns, for a heatmap."""
+    s = _clean(prices)
+    if len(s) < 2:
+        return pd.DataFrame()
+    month_end = s.resample("ME").last()
+    mr = month_end.pct_change()
+    mr.iloc[0] = month_end.iloc[0] / s.iloc[0] - 1.0
+    frame = pd.DataFrame({"year": mr.index.year, "month": mr.index.month, "ret": mr.values})
+    return frame.pivot(index="year", columns="month", values="ret").sort_index(ascending=False)

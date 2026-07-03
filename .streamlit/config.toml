@@ -1,0 +1,16 @@
+# Streamlit theme — a clean, light "analytics" look.
+# Colours align with the validated data-viz palette used for the charts.
+
+[theme]
+base = "light"
+primaryColor = "#2a78d6"          # categorical slot 1 (blue) — accents, active nav, buttons
+backgroundColor = "#f7f8fa"       # page plane
+secondaryBackgroundColor = "#ffffff"  # cards, sidebar, inputs
+textColor = "#0b0b0b"             # primary ink
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

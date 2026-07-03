@@ -32,6 +32,7 @@ class Instrument:
     isin: str
     ticker: str
     name: str
+    category: str | None = None
     asset_class: str | None = None
     region: str | None = None
     domicile: str | None = None

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS instruments (
     isin        TEXT PRIMARY KEY,
     ticker      TEXT,
     name        TEXT,
+    category    TEXT,
     exchange    TEXT,
     currency    TEXT,
     asset_class TEXT,
@@ -96,10 +97,22 @@ def connect(db_path=DB_PATH):
         conn.close()
 
 
+# Columns added after the initial schema shipped: {table: {column: definition}}.
+# init_db applies any that are missing, so an existing DB migrates in place.
+_MIGRATIONS = {
+    "instruments": {"category": "TEXT"},
+}
+
+
 def init_db(db_path=DB_PATH) -> None:
-    """Create tables and indexes if they do not exist."""
+    """Create tables/indexes if absent, then apply additive column migrations."""
     with connect(db_path) as conn:
         conn.executescript(SCHEMA)
+        for table, columns in _MIGRATIONS.items():
+            existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            for col, ddl in columns.items():
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
 
 def upsert_instrument(conn: sqlite3.Connection, inst: Instrument) -> None:
@@ -107,12 +120,13 @@ def upsert_instrument(conn: sqlite3.Connection, inst: Instrument) -> None:
     conn.execute(
         """
         INSERT INTO instruments
-            (isin, ticker, name, exchange, currency, asset_class, region,
+            (isin, ticker, name, category, exchange, currency, asset_class, region,
              domicile, replication, acc_dist, index_name, inception)
-        VALUES (:isin, :ticker, :name, :exchange, :currency, :asset_class, :region,
+        VALUES (:isin, :ticker, :name, :category, :exchange, :currency, :asset_class, :region,
                 :domicile, :replication, :acc_dist, :index_name, :inception)
         ON CONFLICT(isin) DO UPDATE SET
-            ticker=excluded.ticker, name=excluded.name, exchange=excluded.exchange,
+            ticker=excluded.ticker, name=excluded.name, category=excluded.category,
+            exchange=excluded.exchange,
             currency=COALESCE(excluded.currency, instruments.currency),
             asset_class=excluded.asset_class, region=excluded.region,
             domicile=excluded.domicile, replication=excluded.replication,
@@ -123,6 +137,7 @@ def upsert_instrument(conn: sqlite3.Connection, inst: Instrument) -> None:
             "isin": inst.isin,
             "ticker": inst.ticker,
             "name": inst.name,
+            "category": inst.category,
             "exchange": inst.exchange,
             "currency": inst.currency,
             "asset_class": inst.asset_class,

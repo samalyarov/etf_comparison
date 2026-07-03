@@ -370,8 +370,14 @@ etf_comparison/
   fallbacks; TER seeded into `fund_facts` from the watchlist; dividends fetched into
   `distributions`; correlation heatmap live. *Still to do:* live AUM/yield ingestion,
   distribution-yield display, richer cross-source validation.
+- **Phase 3.5 — universe, polish & strategy** ✅ Expanded to ~88 UCITS ETFs across 15
+  categories via a verified generator (`scripts/build_watchlist.py`); themed UI with a top
+  nav (validated colourblind-safe palette) and extra analytics (calendar-year returns,
+  risk-vs-return scatter, monthly-return heatmap, rolling volatility); **Strategy** page with
+  a DCA backtest (final value / profit / money-multiple / XIRR).
 - **Phase 4 — optional power-ups.** `ib_async` prices from IB Gateway; holdings & overlap
-  analysis; FX-adjusted returns; scheduled weekly fetch (Windows Task Scheduler).
+  analysis; FX-adjusted returns (mixing EUR/GBP/USD-quoted listings); lump-sum-vs-DCA
+  compare; scheduled weekly fetch (Windows Task Scheduler).
 
 ---
 

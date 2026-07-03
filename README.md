@@ -8,12 +8,23 @@ and roadmap.
 
 ## What it does
 
-- **Ingests** end-of-day price history (+ dividends) for a watchlist of ETFs from Yahoo
-  Finance, with Tiingo and Stooq as fallbacks, into a local **SQLite** database.
-- **Computes** returns (trailing & CAGR), volatility, Sharpe/Sortino, max drawdown, and
-  cross-ETF correlation — all on a total-return (adjusted-close) basis.
-- **Presents** it in a **Streamlit** UI (Compare / Screener / Detail / Data) and keeps the
-  raw data in a plain `.db` you can query with any SQL client.
+- **Ingests** end-of-day price history (+ dividends) for a watchlist of ~88 UCITS ETFs
+  (across 15 categories) from Yahoo Finance, with Tiingo and Stooq as fallbacks, into a
+  local **SQLite** database.
+- **Computes** returns (trailing, CAGR, calendar-year, rolling), volatility (incl. rolling),
+  Sharpe/Sortino, max drawdown, correlation, and DCA backtests — all total-return basis.
+- **Presents** it in a themed **Streamlit** UI with a top nav and five pages:
+  - **Compare** — growth of 100, calendar-year & drawdown, risk-vs-return scatter,
+    correlation heatmap, risk/return + trailing-return tables.
+  - **Screener** — a risk-return map of the whole universe + a sortable, filterable table.
+  - **Detail** — single-ETF price, monthly-return heatmap, rolling volatility/return.
+  - **Strategy** — a dollar-cost-averaging backtest ("invest X/month for Y years") with
+    final value, profit, money-multiple and XIRR.
+  - **Data** — coverage/freshness and a one-click fetch.
+- Keeps the raw data in a plain `.db` you can query with any SQL client.
+
+The ETF universe is generated + verified against Yahoo by `scripts/build_watchlist.py`
+(re-run it to extend the list). Charts use a colourblind-validated palette.
 
 ## Setup
 
@@ -62,11 +73,14 @@ ruff check src tests
 
 ## Layout
 
-- `src/etf/` — `config`, `db`, `data`, `metrics`, `ingest/` (source adapters), `app.py` (UI).
+- `src/etf/` — `config`, `db`, `data`, `metrics`, `strategy` (DCA), `theme`, `ingest/`
+  (source adapters), `app.py` (UI).
+- `scripts/build_watchlist.py` — regenerates/verifies `watchlist.yaml` from a candidate list.
 - `data/etf.db` — local SQLite database (git-ignored, regenerable via ingest).
-- `watchlist.yaml` — the ETFs to track.
-- `tests/` — unit tests for the analytics layer.
+- `watchlist.yaml` — the ETFs to track (auto-generated).
+- `tests/` — unit tests for the analytics and strategy layers.
 
 ## Stack
 
-Python 3.13 · SQLite · pandas · yfinance (→ Tiingo/Stooq) · Streamlit + Plotly.
+Python 3.13 · SQLite · pandas · yfinance (→ Tiingo/Stooq) · Streamlit + Plotly ·
+streamlit-option-menu.

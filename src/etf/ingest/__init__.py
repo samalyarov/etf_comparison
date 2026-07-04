@@ -116,6 +116,16 @@ def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> 
         )
         print(f"  ✓ {inst.ticker:<10} {rows:>5} price rows from {source.name}{health_note}")
 
+        # Quote currency: capture from Yahoo (reliable GBp/GBP/USD signal) for FX
+        # normalisation. Best-effort; non-fatal.
+        if isinstance(source, YahooSource):
+            try:
+                cur = source.get_currency(inst.ticker)
+                if cur:
+                    db.set_currency(conn, inst.isin, cur)
+            except Exception:  # noqa: BLE001
+                pass
+
         # Dividends: only Yahoo exposes them here; best-effort, non-fatal.
         if isinstance(source, YahooSource):
             try:
@@ -132,6 +142,55 @@ def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> 
 
     print(f"  ✗ {inst.ticker:<10} no source returned data")
     return False
+
+
+def fetch_fx(conn) -> dict:
+    """Fetch daily FX history for the base currency (EUR) and cache it in ``fx_rates``.
+
+    Pulls each ``EUR<ccy>=X`` pair from Yahoo (full history), inverts to EUR-per-unit, and
+    upserts. Called once per full ingest and by the ``--fx`` backfill. Returns per-currency
+    row counts. Non-fatal: a failed pair is skipped.
+    """
+    import yfinance as yf
+
+    from .. import fx
+
+    counts: dict[str, int] = {}
+    for ccy, symbol in fx.FX_YAHOO_SYMBOLS.items():
+        try:
+            raw = yf.download(symbol, period="max", progress=False, threads=False,
+                              auto_adjust=False)
+            if raw is None or raw.empty:
+                continue
+            if isinstance(raw.columns, __import__("pandas").MultiIndex):
+                raw.columns = raw.columns.get_level_values(0)
+            eur_per_unit = fx.eur_per_unit_from_pair(ccy, raw["Close"])
+            counts[ccy] = db.upsert_fx(conn, ccy, eur_per_unit)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ! FX {ccy} ({symbol}) failed: {exc}")
+    print(f"  ↳ FX cached: {counts}")
+    return counts
+
+
+def backfill_fx(only: str | None = None) -> dict:
+    """Backfill quote currencies (per instrument) and FX rates — network, no price fetch."""
+    db.init_db()
+    watchlist = load_watchlist()
+    if only:
+        needle = only.upper()
+        watchlist = [i for i in watchlist if needle in (i.ticker.upper(), i.isin.upper())]
+    yahoo = YahooSource()
+    n_ccy = 0
+    with db.connect() as conn:
+        for inst in watchlist:
+            cur = yahoo.get_currency(inst.ticker)
+            if cur:
+                db.set_currency(conn, inst.isin, cur)
+                n_ccy += 1
+                print(f"  {inst.ticker:<10} {cur}")
+        fetch_fx(conn)
+    print(f"\nBackfilled currency for {n_ccy}/{len(watchlist)} instruments.")
+    return {"currencies": n_ccy}
 
 
 def repair_stored(only: str | None = None) -> dict:
@@ -191,6 +250,12 @@ def run(only: str | None = None, sources_order: list[str] | None = None,
         for inst in watchlist:
             if ingest_instrument(conn, inst, sources, incremental=incremental):
                 ok += 1
+        # FX rates for base-currency (EUR) normalisation — once per run.
+        if any(isinstance(s, YahooSource) for s in sources):
+            try:
+                fetch_fx(conn)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ! FX fetch failed: {exc}")
 
     print(f"\nDone: {ok}/{len(watchlist)} instruments ingested.")
     return {"ok": ok, "total": len(watchlist)}
@@ -211,9 +276,16 @@ def main(argv: list[str] | None = None) -> int:
         "--repair", action="store_true",
         help="Re-run data-quality repair over already-stored prices (no network fetch).",
     )
+    parser.add_argument(
+        "--fx", action="store_true",
+        help="Backfill quote currencies and EUR FX rates (network, no price re-fetch).",
+    )
     args = parser.parse_args(argv)
     if args.repair:
         repair_stored(only=args.only)
+        return 0
+    if args.fx:
+        backfill_fx(only=args.only)
         return 0
     order = [s.strip() for s in args.sources.split(",")] if args.sources else None
     run(only=args.only, sources_order=order, incremental=args.incremental)

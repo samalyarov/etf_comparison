@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import data, metrics, strategy, theme
+from etf import data, fx, metrics, strategy, theme
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -42,6 +42,20 @@ def get_prices(isin: str) -> pd.Series:
 @st.cache_data(ttl=300)
 def get_price_matrix(isins: tuple[str, ...]) -> pd.DataFrame:
     return data.price_matrix(list(isins))
+
+
+@st.cache_data(ttl=300)
+def get_fx() -> pd.DataFrame:
+    return fx.load_fx()
+
+
+@st.cache_data(ttl=300)
+def get_prices_cur(isin: str, to_eur: bool, currency: str | None) -> pd.Series:
+    """Adjusted-close series, optionally converted to EUR using cached FX rates."""
+    s = get_prices(isin)
+    if not to_eur or s.empty:
+        return s
+    return fx.convert_to_base(s, currency, get_fx()).dropna()
 
 
 def pct(x) -> str:
@@ -103,16 +117,24 @@ n_cats = etfs["category"].nunique() if not etfs.empty else 0
 if "theme" not in st.session_state:
     st.session_state.theme = theme.DEFAULT_THEME
 
-left, right = st.columns([3, 1])
+left, mid, right = st.columns([3, 1, 1])
 with left:
     st.markdown('<p class="app-title">ETF Comparison</p>'
                 '<p class="app-sub">Local research desk for UCITS ETFs · '
                 f'{n_etfs} funds across {n_cats} categories</p>', unsafe_allow_html=True)
+with mid:
+    cur_choice = st.radio("Currency", ["Native", "EUR"], horizontal=True,
+                          label_visibility="collapsed",
+                          help="Native = each fund's own quote currency (mixed). "
+                               "EUR = FX-normalised for honest comparison.")
 with right:
     choice = st.radio("Theme", list(theme.THEMES.keys()),
                       index=list(theme.THEMES.keys()).index(st.session_state.theme),
                       horizontal=True, label_visibility="collapsed")
     st.session_state.theme = choice or st.session_state.theme
+
+EUR_MODE = cur_choice == "EUR"
+CUR = "EUR" if EUR_MODE else None  # None => native/mixed
 
 T = theme.THEMES[st.session_state.theme]
 st.markdown(theme.css(T), unsafe_allow_html=True)
@@ -160,6 +182,12 @@ name_by_isin = dict(zip(etfs["isin"], etfs["name"]))
 ticker_by_isin = dict(zip(etfs["isin"], etfs["ticker"]))
 ter_by_isin = dict(zip(etfs["isin"], etfs["ter"]))
 cat_by_isin = dict(zip(etfs["isin"], etfs["category"]))
+currency_by_isin = dict(zip(etfs["isin"], etfs.get("currency", pd.Series(dtype=object))))
+
+
+def px(isin: str) -> pd.Series:
+    """Adjusted-close series in the currently selected currency (native or EUR)."""
+    return get_prices_cur(isin, EUR_MODE, currency_by_isin.get(isin))
 label_by_isin = {r["isin"]: f"{r['name']}  ·  {r['ticker']}" for _, r in etfs.iterrows()}
 isin_by_label = {v: k for k, v in label_by_isin.items()}
 
@@ -185,7 +213,7 @@ def render_compare():
         st.info("Pick at least one ETF above.")
         return
     selected = [isin_by_label[lbl] for lbl in labels]
-    full = {i: get_prices(i) for i in selected}
+    full = {i: px(i) for i in selected}
     full = {i: s for i, s in full.items() if not s.empty}
     if not full:
         st.warning("No price history for the selected ETFs.")
@@ -307,7 +335,7 @@ def render_screener():
     view = etfs[etfs["category"].isin(pick_cat)] if pick_cat else etfs
     rows = []
     for _, r in view.iterrows():
-        s = trim(get_prices(r["isin"]), lookback)
+        s = trim(px(r["isin"]), lookback)
         summ = metrics.summary(s, ter=r.get("ter")) if not s.empty else {}
         rows.append({"Name": r["name"], "Ticker": r["ticker"], "Category": r["category"],
                      "Class": r.get("asset_class"), "TER": r.get("ter"),
@@ -356,9 +384,11 @@ def render_detail():
     m[2].metric("Region", str(row.get("region") or "—"))
     m[3].metric("Acc/Dist", str(row.get("acc_dist") or "—"))
     m[4].metric("Domicile", str(row.get("domicile") or "—"))
-    st.caption(f"ISIN {row['isin']} · {row.get('index_name') or ''}")
+    native_ccy = fx.normalized_currency(currency_by_isin.get(isin))
+    st.caption(f"ISIN {row['isin']} · {row.get('index_name') or ''} · quoted in {native_ccy}"
+               f"{'  → shown in EUR' if EUR_MODE else ''}")
 
-    s = get_prices(isin)
+    s = px(isin)
     if s.empty:
         st.warning("No price history stored yet.")
         return
@@ -432,7 +462,7 @@ def render_strategy():
     step_up = c4.number_input("Step-up %/yr", value=0.0, step=1.0) / 100.0
 
     isin = isin_by_label[label]
-    s = get_prices(isin)
+    s = px(isin)
     if s.empty:
         st.warning("No price history for this ETF.")
         return
@@ -457,8 +487,14 @@ def render_strategy():
                 delta=f"{res.money_multiple:.2f}× money")
     m[3].metric("XIRR (ann.)", pct(res.xirr))
     m[4].metric("Contributions", f"{res.n_contributions}")
-    st.caption(f"{res.start.date()} → {res.end.date()} · amounts are in the ETF's quote "
-               f"currency ({ticker_by_isin[isin]}). Total return basis (dividends reinvested).")
+    if EUR_MODE:
+        ccy_note = "amounts in EUR (FX-normalised)"
+    else:
+        native_ccy = fx.normalized_currency(currency_by_isin.get(isin))
+        ccy_note = (f"amounts in {native_ccy} ({ticker_by_isin[isin]} quote currency) — "
+                    "switch to EUR (top-right) to normalise")
+    st.caption(f"{res.start.date()} → {res.end.date()} · {ccy_note}. "
+               "Total return basis (dividends reinvested).")
 
     st.markdown('<p class="section-label">Portfolio value vs money invested</p>',
                 unsafe_allow_html=True)
@@ -559,7 +595,7 @@ def render_recommended():
                 unsafe_allow_html=True)
     fig = go.Figure()
     for idx, i in enumerate(REC_ISINS):
-        s = trim(get_prices(i), "10Y")
+        s = trim(px(i), "10Y")
         if s.empty:
             continue
         norm = metrics.normalize_to_100(s)

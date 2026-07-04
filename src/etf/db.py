@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS ingest_log (
     run_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS fx_rates (
+    date          DATE NOT NULL,
+    quote         TEXT NOT NULL,   -- ISO currency of the priced instrument (USD, GBP, CHF)
+    eur_per_unit  REAL NOT NULL,   -- EUR value of 1 unit of `quote` on `date`
+    PRIMARY KEY (date, quote)
+);
+
 CREATE TABLE IF NOT EXISTS data_health (
     isin            TEXT PRIMARY KEY REFERENCES instruments(isin),
     checked_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -244,6 +251,27 @@ def upsert_fact(
         """,
         (isin, snapshot_date.isoformat(), ter, aum, index_name, yield_ttm, source),
     )
+
+
+def set_currency(conn: sqlite3.Connection, isin: str, currency: str) -> None:
+    """Store an instrument's quote currency (as reported by the source, e.g. GBp/GBP/USD)."""
+    conn.execute("UPDATE instruments SET currency = ? WHERE isin = ?", (currency, isin))
+
+
+def upsert_fx(conn: sqlite3.Connection, quote: str, series: pd.Series) -> int:
+    """Upsert a date-indexed EUR-per-unit series for one quote currency. Returns rows."""
+    rows = [(idx.date().isoformat() if hasattr(idx, "date") else str(idx), quote, float(val))
+            for idx, val in series.dropna().items()]
+    if not rows:
+        return 0
+    conn.executemany(
+        """
+        INSERT INTO fx_rates (date, quote, eur_per_unit) VALUES (?, ?, ?)
+        ON CONFLICT(date, quote) DO UPDATE SET eur_per_unit=excluded.eur_per_unit
+        """,
+        rows,
+    )
+    return len(rows)
 
 
 def upsert_health(conn: sqlite3.Connection, isin: str, report) -> None:

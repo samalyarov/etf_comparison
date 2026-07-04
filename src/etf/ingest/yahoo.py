@@ -52,6 +52,20 @@ class YahooSource:
         }
         return normalize_ohlcv(df, rename)
 
+    def get_currency(self, ticker: str) -> str | None:
+        """Return the quote currency Yahoo reports for a ticker (e.g. 'GBp', 'USD'), or None.
+
+        This is the reliable signal for the pence-vs-pounds ambiguity on London listings:
+        Yahoo reports pence-quoted funds as 'GBp' and pounds-quoted as 'GBP'.
+        """
+        import yfinance as yf
+
+        try:
+            cur = yf.Ticker(ticker).fast_info.get("currency")
+            return str(cur) if cur else None
+        except Exception:  # noqa: BLE001
+            return None
+
     def get_dividends(self, ticker: str) -> list[tuple[date, float]]:
         """Return (ex_date, amount) dividend history; empty list on any failure."""
         import yfinance as yf

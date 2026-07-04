@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import costs, data, fx, metrics, portfolio, projection, strategy, theme
+from etf import costs, data, fx, metrics, portfolio, projection, sentiment, strategy, theme
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -587,6 +587,40 @@ def render_detail():
             st.caption("How it behaved in notable market regimes (approx. windows).")
         else:
             st.caption("No overlap with the tracked regime windows.")
+
+    # --- Sentiment (experimental, supplementary) ---
+    st.markdown('<p class="section-label">Sentiment · experimental, supplementary</p>',
+                unsafe_allow_html=True)
+    cat = row.get("category")
+    kws = sentiment.THEME_QUERIES.get(cat)
+    hint = ""
+    if kws:
+        hint = (f"Suggested searches for **{cat}**: " + ", ".join(f"“{k}”" for k in kws[0])
+                + " · communities: " + ", ".join(kws[1]))
+    st.caption("Broad-index ETFs are barely discussed by ticker, and sentiment is a "
+               "short-horizon, gameable signal — for a buy-and-hold plan treat it as colour, "
+               "never a trigger. Paste headlines/threads you're reading for an on-demand, "
+               "local read (no data leaves your machine). " + hint)
+    pasted = st.text_area("Paste headlines or thread titles (one per line)", height=120,
+                          placeholder="e.g.\nNasdaq surges to record high\nAnalysts warn of tech bubble\n…")
+    lines = [ln.strip() for ln in pasted.splitlines() if ln.strip()]
+    if lines:
+        summ_s = sentiment.summarize(lines)
+        tag, explanation = sentiment.contrarian_flag(summ_s)
+        sm = st.columns(4)
+        sm[0].metric("Items", summ_s.n)
+        sm[1].metric("Mean sentiment", f"{summ_s.mean_score:+.2f}", delta=summ_s.label,
+                     delta_color="off")
+        sm[2].metric("Bull / bear", f"{summ_s.pos} / {summ_s.neg}")
+        sm[3].metric("Contrarian read", tag.split(" —")[0], delta_color="off")
+        st.caption("**" + tag + "** — " + explanation)
+        scored = pd.DataFrame({"Headline": lines,
+                               "Score": [sentiment.score_text(x) for x in lines]})
+        scored = scored.sort_values("Score").reset_index(drop=True)
+        render_table(scored, hide_index=True, max_height=240, fmt={"Score": "{:+.2f}"})
+    else:
+        st.caption("No text pasted — this panel is opt-in and never auto-fetches. A live "
+                   "Reddit/Finnhub feed could populate it later (see brain/sentiment_analysis.md).")
 
 
 # --------------------------------------------------------------------------- Strategy (DCA)

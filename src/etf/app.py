@@ -489,9 +489,48 @@ def render_data():
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Ingest failed: {exc}")
 
+    # --- Data-quality health: GBX/GBP repairs, bad prints, and suspect series ---
+    st.markdown('<p class="section-label">Data health</p>', unsafe_allow_html=True)
+    health = data.data_health()
+    if health.empty:
+        st.caption("No health records yet. Run `python -m etf.ingest --repair` (no network) "
+                   "or re-fetch to populate the data-quality checks.")
+    else:
+        n_susp = int((health["status"] == "suspect").sum())
+        n_rep = int((health["status"] == "repaired").sum())
+        n_clean = int((health["status"] == "clean").sum())
+        hc = st.columns(3)
+        hc[0].metric("Clean", n_clean)
+        hc[1].metric("Repaired", n_rep, help="GBX/GBP rescales and bad prints fixed at ingest.")
+        hc[2].metric("Suspect", n_susp,
+                     help="Residual anomalies (e.g. unadjusted splits) — excluded from rankings.")
+        hv = health.merge(etfs[["isin", "name", "ticker"]], on="isin", how="left")
+        hv = hv[hv["status"] != "clean"].copy()
+        if not hv.empty:
+            hv = hv.sort_values("status", ascending=False)  # suspect first
+            disp = hv[["name", "ticker", "status", "rescaled_days", "despiked_days",
+                       "max_move_before", "max_move_after", "notes"]].rename(columns={
+                "name": "ETF", "ticker": "Ticker", "status": "Status",
+                "rescaled_days": "Rescaled", "despiked_days": "De-spiked",
+                "max_move_before": "Worst move (raw)", "max_move_after": "Worst move (fixed)",
+                "notes": "Notes"})
+            render_table(disp, hide_index=True, max_height=300,
+                         fmt={"Worst move (raw)": "{:.0%}", "Worst move (fixed)": "{:.0%}"})
+        else:
+            st.caption("All series clean — no repairs needed.")
+
     st.markdown('<p class="section-label">Coverage &amp; freshness</p>', unsafe_allow_html=True)
     cov = etfs[["name", "ticker", "category", "first_date", "last_date", "n_prices"]].copy()
-    render_table(cov, hide_index=True, max_height=380)
+    # Staleness: flag funds whose last price is well behind the freshest in the universe.
+    last = pd.to_datetime(cov["last_date"], errors="coerce")
+    universe_max = last.max()
+    cov["days_behind"] = (universe_max - last).dt.days
+    stale = cov[cov["days_behind"] > 7]
+    if not stale.empty and pd.notna(universe_max):
+        st.caption(f"⚠ {len(stale)} fund(s) are >7 days behind the freshest data "
+                   f"({universe_max.date()}). They may have been delisted or renamed.")
+    render_table(cov, hide_index=True, max_height=380,
+                 fmt={"days_behind": "{:.0f}"})
 
     st.markdown('<p class="section-label">Recent ingest log</p>', unsafe_allow_html=True)
     render_table(data.ingest_log(60), hide_index=True, max_height=380)

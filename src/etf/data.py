@@ -83,6 +83,19 @@ def load_distributions(isin: str, db_path=DB_PATH) -> pd.DataFrame:
     return df.set_index("ex_date")
 
 
+def data_health(db_path=DB_PATH) -> pd.DataFrame:
+    """Return the per-instrument data-quality report recorded at ingest, if any."""
+    with db.connect(db_path) as conn:
+        try:
+            return pd.read_sql_query(
+                "SELECT isin, status, rescaled_days, despiked_days, "
+                "max_move_before, max_move_after, notes, checked_at FROM data_health",
+                conn,
+            )
+        except Exception:  # noqa: BLE001 - table may not exist on an old DB
+            return pd.DataFrame()
+
+
 def ingest_log(limit: int = 100, db_path=DB_PATH) -> pd.DataFrame:
     """Return the most recent ingest-log rows."""
     with db.connect(db_path) as conn:

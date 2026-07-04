@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS ingest_log (
     run_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS data_health (
+    isin            TEXT PRIMARY KEY REFERENCES instruments(isin),
+    checked_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status          TEXT,      -- clean | repaired | suspect
+    rescaled_days   INTEGER,   -- GBX/GBP power-of-100 days repaired
+    despiked_days   INTEGER,   -- isolated bad prints repaired
+    max_move_before REAL,      -- worst |daily return| as fetched
+    max_move_after  REAL,      -- worst |daily return| after repair
+    notes           TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_prices_date ON prices(date);
 """
 
@@ -232,6 +243,25 @@ def upsert_fact(
             source=excluded.source
         """,
         (isin, snapshot_date.isoformat(), ter, aum, index_name, yield_ttm, source),
+    )
+
+
+def upsert_health(conn: sqlite3.Connection, isin: str, report) -> None:
+    """Record the data-quality outcome for one instrument (one row per isin, upserted)."""
+    conn.execute(
+        """
+        INSERT INTO data_health
+            (isin, checked_at, status, rescaled_days, despiked_days,
+             max_move_before, max_move_after, notes)
+        VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(isin) DO UPDATE SET
+            checked_at=CURRENT_TIMESTAMP, status=excluded.status,
+            rescaled_days=excluded.rescaled_days, despiked_days=excluded.despiked_days,
+            max_move_before=excluded.max_move_before, max_move_after=excluded.max_move_after,
+            notes=excluded.notes
+        """,
+        (isin, report.status, report.rescaled_days, report.despiked_days,
+         report.max_move_before, report.max_move_after, report.notes),
     )
 
 

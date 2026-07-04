@@ -23,7 +23,7 @@ import random
 import time
 from datetime import date, timedelta
 
-from .. import db
+from .. import db, quality
 from ..config import Instrument, load_watchlist
 from .base import SourceError
 from .stooq import StooqSource
@@ -100,14 +100,21 @@ def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> 
             )
             continue
 
+        # Data-quality gate: repair GBX/GBP mis-denomination and isolated bad prints
+        # *before* storing, so downstream metrics never see the corruption. The outcome
+        # is recorded in data_health and noted on the ingest log.
+        df, report = quality.clean_prices(df)
+        db.upsert_health(conn, inst.isin, report)
+
         rows = db.upsert_prices(conn, inst.isin, df, source.name)
+        health_note = "" if report.status == "clean" else f" [{report.status}: {report.notes}]"
         db.log_ingest(
             conn, inst.isin, source.name, "prices",
             from_date=df.index.min().date() if len(df) else None,
             to_date=df.index.max().date() if len(df) else None,
-            rows=rows, status="ok",
+            rows=rows, status="ok", message=report.notes,
         )
-        print(f"  ✓ {inst.ticker:<10} {rows:>5} price rows from {source.name}")
+        print(f"  ✓ {inst.ticker:<10} {rows:>5} price rows from {source.name}{health_note}")
 
         # Dividends: only Yahoo exposes them here; best-effort, non-fatal.
         if isinstance(source, YahooSource):
@@ -125,6 +132,40 @@ def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> 
 
     print(f"  ✗ {inst.ticker:<10} no source returned data")
     return False
+
+
+def repair_stored(only: str | None = None) -> dict:
+    """Re-run the data-quality repair over *already stored* prices (no network).
+
+    Reads each instrument's price history, applies :func:`quality.clean_prices`, writes the
+    cleaned rows back, and records the outcome in ``data_health``. Use after upgrading the
+    quality logic, or to fix a database ingested before the gate existed. Returns a summary.
+    """
+    from ..data import load_prices  # local import: keeps the network-free path lightweight
+
+    db.init_db()
+    watchlist = load_watchlist()
+    if only:
+        needle = only.upper()
+        watchlist = [i for i in watchlist if needle in (i.ticker.upper(), i.isin.upper())]
+    counts = {"clean": 0, "repaired": 0, "suspect": 0}
+    with db.connect() as conn:
+        for inst in watchlist:
+            df = load_prices(inst.isin)
+            if df.empty:
+                continue
+            cols = [c for c in ["open", "high", "low", "close", "adj_close", "volume"]
+                    if c in df.columns]
+            cleaned, report = quality.clean_prices(df[cols])
+            src = df["source"].mode().iat[0] if "source" in df and df["source"].notna().any() \
+                else "repair"
+            db.upsert_prices(conn, inst.isin, cleaned, str(src))
+            db.upsert_health(conn, inst.isin, report)
+            counts[report.status] = counts.get(report.status, 0) + 1
+            if report.status != "clean":
+                print(f"  {report.status:<8} {inst.ticker:<10} {report.notes}")
+    print(f"\nRepair done: {counts}")
+    return counts
 
 
 def run(only: str | None = None, sources_order: list[str] | None = None,
@@ -166,7 +207,14 @@ def main(argv: list[str] | None = None) -> int:
         "--incremental", action="store_true",
         help="Fetch only new rows since the last stored date (faster; may drift adj_close).",
     )
+    parser.add_argument(
+        "--repair", action="store_true",
+        help="Re-run data-quality repair over already-stored prices (no network fetch).",
+    )
     args = parser.parse_args(argv)
+    if args.repair:
+        repair_stored(only=args.only)
+        return 0
     order = [s.strip() for s in args.sources.split(",")] if args.sources else None
     run(only=args.only, sources_order=order, incremental=args.incremental)
     return 0

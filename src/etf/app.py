@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import costs, data, fx, metrics, strategy, theme
+from etf import costs, data, fx, metrics, projection, strategy, theme
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -499,7 +499,7 @@ def render_strategy():
     initial = c3.number_input("Initial lump", value=0, step=500, min_value=0)
     step_up = c4.number_input("Step-up %/yr", value=0.0, step=1.0) / 100.0
 
-    o1, o2 = st.columns([1, 3])
+    o1, _ = st.columns([1, 3])
     include_costs = o1.checkbox("Include IBKR costs", value=True,
                                 help="Deduct broker commission (min €1.25/order, 0.035%) and "
                                      "FX conversion cost from each contribution.")
@@ -558,6 +558,69 @@ def render_strategy():
 
     st.caption("DCA buys on the first trading day of each month. A negative gap between the "
                "lines is a period where you were underwater on cumulative contributions.")
+
+    # --- Forward projection: "if the trend continues" ---
+    st.markdown('<p class="section-label">Projection · if you keep going</p>',
+                unsafe_allow_html=True)
+    p1, p2, p3 = st.columns([1, 1, 2])
+    proj_years = p1.slider("Project years", min_value=1, max_value=40, value=20)
+    method = p2.selectbox("Method", ["Monte-Carlo (bootstrap)", "Monte-Carlo (normal)",
+                                     "OLS trend"], index=0)
+    method_key = {"Monte-Carlo (bootstrap)": "bootstrap",
+                  "Monte-Carlo (normal)": "normal", "OLS trend": "ols"}[method]
+    net_of_cost = p3.checkbox("Project on cost/tax-adjusted return", value=True,
+                              help="Reduce the historical return by the fund's all-in cost "
+                                   "(TER + tracking diff + spread/FX) before projecting.")
+
+    ann_override = None
+    if net_of_cost:
+        drow = etfs[etfs["isin"] == isin].iloc[0]
+        needs_fx = native_ccy != "EUR"
+        tco = costs.total_cost_of_ownership(
+            drow.get("ter"),
+            spread=costs.estimate_spread(drow.get("asset_class"), drow.get("category")),
+            fx_bps=costs.FX_CONVERSION_BPS if needs_fx else 0.0,
+            replication=drow.get("replication"))
+        hist_cagr = metrics.cagr(trim(s, f"{min(horizon, 15)}Y"))
+        if hist_cagr == hist_cagr:  # not NaN
+            ann_override = hist_cagr - tco["total_annual"]
+
+    proj = projection.project_plan(
+        trim(s, f"{min(horizon, 15)}Y") if horizon >= 3 else s,
+        start_value=float(res.final_value), monthly=float(monthly), years=proj_years,
+        method=method_key, annual_step_up=step_up, annual_return=ann_override)
+
+    pfig = go.Figure()
+    x = proj.dates
+    fancol = "rgba(42,120,214,0.10)"
+    if method_key != "ols":
+        pfig.add_trace(go.Scatter(x=x, y=proj.fan["p95"], line=dict(width=0),
+                                  showlegend=False, hoverinfo="skip"))
+        pfig.add_trace(go.Scatter(x=x, y=proj.fan["p5"], fill="tonexty", fillcolor=fancol,
+                                  line=dict(width=0), name="5–95% range", hoverinfo="skip"))
+        pfig.add_trace(go.Scatter(x=x, y=proj.fan["p75"], line=dict(width=0),
+                                  showlegend=False, hoverinfo="skip"))
+        pfig.add_trace(go.Scatter(x=x, y=proj.fan["p25"], fill="tonexty",
+                                  fillcolor="rgba(42,120,214,0.18)", line=dict(width=0),
+                                  name="25–75% range", hoverinfo="skip"))
+    pfig.add_trace(go.Scatter(x=x, y=proj.fan["p50"], name="Median",
+                              line=dict(color=T.series[0], width=2.5)))
+    pfig.add_trace(go.Scatter(x=x, y=proj.fan["invested"], name="Money invested",
+                              line=dict(color=T.ink2, width=1.5, dash="dot")))
+    sf(pfig, height=380)
+    st.plotly_chart(pfig, width="stretch")
+
+    end = proj.fan.iloc[-1]
+    pm = st.columns(4)
+    pm[0].metric(f"Contributed by yr {proj_years}", money(proj.total_contributed))
+    pm[1].metric("Median outcome", money(end["p50"]))
+    pm[2].metric("Pessimistic (5th pct)", money(end["p5"]) if method_key != "ols" else "—")
+    pm[3].metric("Optimistic (95th pct)", money(end["p95"]) if method_key != "ols" else "—")
+    st.caption(f"Projected on a {proj.annual_return_used * 100:.1f}%/yr "
+               f"{'cost-adjusted ' if net_of_cost else ''}return "
+               f"({'bootstrapped from history' if method_key == 'bootstrap' else method_key}). "
+               "Scenario arithmetic, not a forecast — past performance does not predict "
+               "future returns.")
 
 
 # --------------------------------------------------------------------------- Data admin

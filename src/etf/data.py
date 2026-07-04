@@ -83,6 +83,21 @@ def load_distributions(isin: str, db_path=DB_PATH) -> pd.DataFrame:
     return df.set_index("ex_date")
 
 
+def macro_series(series: str | None = None, db_path=DB_PATH) -> pd.DataFrame:
+    """Return cached macro-context rows (optionally one series), indexed by date."""
+    with db.connect(db_path) as conn:
+        try:
+            q = "SELECT date, series, value FROM macro_series"
+            params: list = []
+            if series:
+                q += " WHERE series = ?"
+                params = [series]
+            return pd.read_sql_query(q + " ORDER BY date", conn, params=params,
+                                     parse_dates=["date"])
+        except Exception:  # noqa: BLE001
+            return pd.DataFrame()
+
+
 def data_health(db_path=DB_PATH) -> pd.DataFrame:
     """Return the per-instrument data-quality report recorded at ingest, if any."""
     with db.connect(db_path) as conn:

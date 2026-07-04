@@ -66,6 +66,29 @@ class YahooSource:
         except Exception:  # noqa: BLE001
             return None
 
+    def get_fundamentals(self, ticker: str) -> dict:
+        """Best-effort fund metadata from Yahoo: AUM, inception, category. Empty on failure."""
+        import datetime as _dt
+
+        import yfinance as yf
+
+        out: dict = {}
+        try:
+            info = yf.Ticker(ticker).info or {}
+        except Exception:  # noqa: BLE001
+            return out
+        if info.get("totalAssets"):
+            out["aum"] = float(info["totalAssets"])
+        incep = info.get("fundInceptionDate")
+        if incep:
+            try:
+                out["inception"] = _dt.date.fromtimestamp(int(incep)).isoformat()
+            except (ValueError, OSError, OverflowError):
+                pass
+        if info.get("category"):
+            out["category_yahoo"] = info["category"]
+        return out
+
     def get_dividends(self, ticker: str) -> list[tuple[date, float]]:
         """Return (ex_date, amount) dividend history; empty list on any failure."""
         import yfinance as yf

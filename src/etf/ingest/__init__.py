@@ -172,6 +172,53 @@ def fetch_fx(conn) -> dict:
     return counts
 
 
+def fetch_macro(conn) -> dict:
+    """Fetch macro-context series (US 10Y yield, VIX) from Yahoo and cache them."""
+    import yfinance as yf
+
+    symbols = {"US10Y": "^TNX", "VIX": "^VIX"}
+    scale = {"US10Y": 0.1, "VIX": 1.0}  # ^TNX is yield*10
+    counts: dict[str, int] = {}
+    for name, sym in symbols.items():
+        try:
+            raw = yf.download(sym, period="max", progress=False, threads=False,
+                              auto_adjust=False)
+            if raw is None or raw.empty:
+                continue
+            if isinstance(raw.columns, __import__("pandas").MultiIndex):
+                raw.columns = raw.columns.get_level_values(0)
+            counts[name] = db.upsert_macro(conn, name, raw["Close"] * scale[name])
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ! macro {name} ({sym}) failed: {exc}")
+    print(f"  ↳ macro cached: {counts}")
+    return counts
+
+
+def backfill_facts(only: str | None = None) -> dict:
+    """Backfill fund fundamentals (AUM, inception) + macro series — network, no price fetch."""
+    db.init_db()
+    watchlist = load_watchlist()
+    if only:
+        needle = only.upper()
+        watchlist = [i for i in watchlist if needle in (i.ticker.upper(), i.isin.upper())]
+    yahoo = YahooSource()
+    n = 0
+    with db.connect() as conn:
+        for inst in watchlist:
+            f = yahoo.get_fundamentals(inst.ticker)
+            if not f:
+                continue
+            if f.get("aum"):
+                db.upsert_fact(conn, inst.isin, date.today(), aum=f["aum"], source="yahoo")
+            if f.get("inception"):
+                db.set_inception(conn, inst.isin, f["inception"])
+            n += 1
+            print(f"  {inst.ticker:<10} aum={f.get('aum')} inception={f.get('inception')}")
+        fetch_macro(conn)
+    print(f"\nBackfilled fundamentals for {n}/{len(watchlist)} instruments.")
+    return {"funds": n}
+
+
 def backfill_fx(only: str | None = None) -> dict:
     """Backfill quote currencies (per instrument) and FX rates — network, no price fetch."""
     db.init_db()
@@ -280,12 +327,19 @@ def main(argv: list[str] | None = None) -> int:
         "--fx", action="store_true",
         help="Backfill quote currencies and EUR FX rates (network, no price re-fetch).",
     )
+    parser.add_argument(
+        "--facts", action="store_true",
+        help="Backfill fund fundamentals (AUM/inception) + macro series (network).",
+    )
     args = parser.parse_args(argv)
     if args.repair:
         repair_stored(only=args.only)
         return 0
     if args.fx:
         backfill_fx(only=args.only)
+        return 0
+    if args.facts:
+        backfill_facts(only=args.only)
         return 0
     order = [s.strip() for s in args.sources.split(",")] if args.sources else None
     run(only=args.only, sources_order=order, incremental=args.incremental)

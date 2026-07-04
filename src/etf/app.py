@@ -50,6 +50,14 @@ def get_fx() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=300)
+def get_macro() -> pd.DataFrame:
+    df = data.macro_series()
+    if df.empty:
+        return df
+    return df.pivot(index="date", columns="series", values="value").sort_index()
+
+
+@st.cache_data(ttl=300)
 def get_prices_cur(isin: str, to_eur: bool, currency: str | None) -> pd.Series:
     """Adjusted-close series, optionally converted to EUR using cached FX rates."""
     s = get_prices(isin)
@@ -415,6 +423,25 @@ def render_detail():
     m[3].metric("Acc/Dist", str(row.get("acc_dist") or "—"))
     m[4].metric("Domicile", str(row.get("domicile") or "—"))
     native_ccy = fx.normalized_currency(currency_by_isin.get(isin))
+    # Fundamentals row: AUM, fund age, replication, index provider.
+    aum = row.get("aum")
+    incep = row.get("inception")
+    age_txt = "—"
+    if incep and str(incep) != "None":
+        try:
+            age = (pd.Timestamp.today() - pd.Timestamp(incep)).days / 365.25
+            age_txt = f"{age:.0f}y (since {str(incep)[:4]})"
+        except (ValueError, TypeError):
+            pass
+    aum_txt = "—"
+    if aum and pd.notna(aum):
+        aum_txt = f"€{aum / 1e9:.1f}B" if aum >= 1e9 else f"€{aum / 1e6:.0f}M"
+    f2 = st.columns(5)
+    f2[0].metric("AUM (size)", aum_txt, help="Fund total assets (larger = more liquid).")
+    f2[1].metric("Track record", age_txt)
+    f2[2].metric("Replication", str(row.get("replication") or "—"))
+    f2[3].metric("Currency", native_ccy)
+    f2[4].metric("Asset class", str(row.get("asset_class") or "—"))
     st.caption(f"ISIN {row['isin']} · {row.get('index_name') or ''} · quoted in {native_ccy}"
                f"{'  → shown in EUR' if EUR_MODE else ''}")
 
@@ -822,6 +849,27 @@ def render_recommended():
                       "Volatility": "{:.2%}", "Sharpe": "{:.2f}", "Max DD": "{:.2%}"})
     st.caption(f"Ranked by {basis.lower()} over the last {yrs} years; only funds with a full "
                f"{yrs}-year history are eligible.")
+
+    # --- Market context (macro) ---
+    macro = get_macro()
+    if not macro.empty:
+        st.markdown('<p class="section-label">Market context · "is now a good time?"</p>',
+                    unsafe_allow_html=True)
+        mc = st.columns(3)
+        if "US10Y" in macro.columns:
+            y = macro["US10Y"].dropna()
+            if not y.empty:
+                chg = y.iloc[-1] - (y.iloc[-252] if len(y) > 252 else y.iloc[0])
+                mc[0].metric("US 10Y yield", f"{y.iloc[-1]:.2f}%",
+                             delta=f"{chg:+.2f} pt / yr", delta_color="off")
+        if "VIX" in macro.columns:
+            v = macro["VIX"].dropna()
+            if not v.empty:
+                lvl = ("calm" if v.iloc[-1] < 15 else "elevated" if v.iloc[-1] < 25 else "stressed")
+                mc[1].metric("VIX (volatility)", f"{v.iloc[-1]:.1f}", delta=lvl, delta_color="off")
+        mc[2].metric("As of", str(macro.index[-1].date()))
+        st.caption("Context only, not a timing signal — high rates/VIX historically coincide "
+                   "with better forward returns, but buy-and-hold rarely benefits from timing.")
 
 
 # --------------------------------------------------------------------------- Portfolio

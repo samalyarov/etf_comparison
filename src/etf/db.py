@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS ingest_log (
     run_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS macro_series (
+    date   DATE NOT NULL,
+    series TEXT NOT NULL,   -- e.g. US10Y, VIX
+    value  REAL NOT NULL,
+    PRIMARY KEY (date, series)
+);
+
 CREATE TABLE IF NOT EXISTS fx_rates (
     date          DATE NOT NULL,
     quote         TEXT NOT NULL,   -- ISO currency of the priced instrument (USD, GBP, CHF)
@@ -256,6 +263,25 @@ def upsert_fact(
 def set_currency(conn: sqlite3.Connection, isin: str, currency: str) -> None:
     """Store an instrument's quote currency (as reported by the source, e.g. GBp/GBP/USD)."""
     conn.execute("UPDATE instruments SET currency = ? WHERE isin = ?", (currency, isin))
+
+
+def set_inception(conn: sqlite3.Connection, isin: str, inception: str) -> None:
+    """Store an instrument's inception date (fund age)."""
+    conn.execute(
+        "UPDATE instruments SET inception = COALESCE(inception, ?) WHERE isin = ?",
+        (inception, isin))
+
+
+def upsert_macro(conn: sqlite3.Connection, series: str, values: pd.Series) -> int:
+    """Upsert a date-indexed macro series (e.g. US10Y yield, VIX). Returns rows."""
+    rows = [(idx.date().isoformat() if hasattr(idx, "date") else str(idx), series, float(val))
+            for idx, val in values.dropna().items()]
+    if not rows:
+        return 0
+    conn.executemany(
+        "INSERT INTO macro_series (date, series, value) VALUES (?, ?, ?) "
+        "ON CONFLICT(date, series) DO UPDATE SET value=excluded.value", rows)
+    return len(rows)
 
 
 def upsert_fx(conn: sqlite3.Connection, quote: str, series: pd.Series) -> int:

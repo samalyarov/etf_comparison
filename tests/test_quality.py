@@ -75,3 +75,22 @@ def test_volume_untouched_by_rescale():
     df["volume"] = [111, 222, 333, 444]
     out, _ = quality.clean_prices(df)
     assert list(out["volume"]) == [111, 222, 333, 444]
+
+
+# --- has_clean_history threshold behaviour against realistic corruption ---
+
+def test_has_clean_history_on_gbx_flip_and_repair():
+    from etf import metrics
+    # A GBX/GBP 100x flip is flagged as unclean...
+    bad = _series([24.0, 24.5, 2493.0, 24.7, 25.0, 24.8]).astype(float)
+    assert not metrics.has_clean_history(bad)
+    # ...and passes after clean_prices repairs it.
+    out, _ = quality.clean_prices(_frame([24.0, 24.5, 2493.0, 24.7, 25.0, 24.8]))
+    assert metrics.has_clean_history(out["adj_close"])
+
+
+def test_has_clean_history_threshold_boundary():
+    from etf import metrics
+    # A 49% single-day move is clean; a 51% move is not (default 50% threshold).
+    assert metrics.has_clean_history(_series([100, 149, 150, 151]))
+    assert not metrics.has_clean_history(_series([100, 151, 150, 151]))

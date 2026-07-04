@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import costs, data, fx, metrics, projection, strategy, theme
+from etf import costs, data, fx, metrics, portfolio, projection, strategy, theme
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -163,14 +163,15 @@ def render_table(obj, *, hide_index: bool = False, fmt: dict | None = None,
                 unsafe_allow_html=True)
 
 
-_PAGE_NAMES = ["Recommended", "Compare", "Screener", "Detail", "Strategy", "Data"]
+_PAGE_NAMES = ["Recommended", "Compare", "Screener", "Portfolio", "Detail", "Strategy", "Data"]
 _forced = os.environ.get("ETF_FORCE_PAGE")  # test hook: exercise any page via AppTest
 if _forced in _PAGE_NAMES:
     page = _forced
 else:
     page = option_menu(
         None, _PAGE_NAMES,
-        icons=["star", "bar-chart-line", "funnel", "graph-up", "calculator", "database"],
+        icons=["star", "bar-chart-line", "funnel", "pie-chart", "graph-up", "calculator",
+               "database"],
         orientation="horizontal", default_index=0, styles=theme.nav_styles(T),
     ) or "Recommended"
 
@@ -731,8 +732,136 @@ def render_recommended():
                "10-year history are eligible for the ranking.")
 
 
+# --------------------------------------------------------------------------- Portfolio
+def render_portfolio():
+    st.markdown('<p class="section-label">Portfolio builder · weighted blend backtest</p>',
+                unsafe_allow_html=True)
+    labels = st.multiselect("Funds in the blend", list(isin_by_label.keys()),
+                            default=default_labels[:3] or list(isin_by_label.keys())[:3])
+    if not labels:
+        st.info("Pick at least two funds to build a blend.")
+        return
+    selected = [isin_by_label[lbl] for lbl in labels]
+
+    # Correlation-aware suggestion (writes a suggested set the user can adopt).
+    sc1, sc2 = st.columns([1, 3])
+    if sc1.button("Suggest low-correlation set"):
+        mat_all = get_price_matrix(tuple(selected)) if len(selected) > 1 else pd.DataFrame()
+        if not mat_all.empty:
+            picks = portfolio.suggest_low_correlation(mat_all, n=min(4, len(selected)))
+            st.session_state["port_suggested"] = picks
+            sc2.caption("Suggested (least-correlated among your picks): "
+                        + ", ".join(ticker_by_isin.get(i, i) for i in picks))
+
+    # Weight inputs — equal-weight default, live-normalised.
+    st.markdown('<p class="section-label">Weights</p>', unsafe_allow_html=True)
+    wcols = st.columns(min(len(selected), 5))
+    raw_w = {}
+    for idx, i in enumerate(selected):
+        col = wcols[idx % len(wcols)]
+        raw_w[i] = col.number_input(ticker_by_isin.get(i, i), min_value=0.0, value=100.0,
+                                    step=5.0, key=f"w_{i}")
+    tot = sum(raw_w.values()) or 1.0
+    weights = {i: w / tot for i, w in raw_w.items()}
+
+    r1, r2 = st.columns([1, 3])
+    rebal = r1.selectbox("Rebalance", list(portfolio.REBALANCE_FREQ.keys()), index=1)
+    rebal_freq = portfolio.REBALANCE_FREQ[rebal]
+    r2.caption("Weights shown are normalised to 100%. "
+               + " · ".join(f"{ticker_by_isin.get(i, i)} {weights[i] * 100:.0f}%"
+                            for i in selected))
+
+    # Build a currency-aware price matrix for the selected funds.
+    cols = {i: px(i) for i in selected}
+    mat = pd.DataFrame({i: s for i, s in cols.items() if not s.empty})
+    if mat.shape[1] < 1:
+        st.warning("No overlapping price history for the selected funds.")
+        return
+
+    cmp = portfolio.rebalance_comparison(mat, weights, rebalance=rebal_freq)
+    blend = cmp.get("rebalanced", pd.Series(dtype=float))
+    if blend.empty:
+        st.warning("Funds don't share enough common history to blend. Try a different set.")
+        return
+
+    # --- Blended metrics ---
+    rf = 0.02
+    summ = metrics.summary(blend, risk_free=rf)
+    k = st.columns(5)
+    k[0].metric("Blend CAGR", pct(summ["cagr"]))
+    k[1].metric("Volatility", pct(summ["volatility"]))
+    k[2].metric("Max drawdown", pct(summ["max_drawdown"]))
+    k[3].metric("Sharpe", "—" if pd.isna(summ["sharpe"]) else f"{summ['sharpe']:.2f}")
+    reb_gain = (cmp.get("rebalanced_final", 0) - cmp.get("drift_final", 0))
+    k[4].metric("Rebalance effect", money(reb_gain),
+                help="Final-value difference vs the same blend left to drift (per 100 start).")
+    st.caption(f"Common history {blend.index[0].date()} → {blend.index[-1].date()} · "
+               f"rebalanced {rebal.lower()} · "
+               f"{'EUR (FX-normalised)' if EUR_MODE else 'native currencies (mixed) — switch to EUR'}.")
+
+    # --- Growth of 100: rebalanced vs drift, plus components ---
+    st.markdown('<p class="section-label">Growth of 100 · blend vs components</p>',
+                unsafe_allow_html=True)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=blend.index, y=blend.values, name="Blend (rebalanced)",
+                             line=dict(color=T.series[0], width=2.5)))
+    drift = cmp.get("drift")
+    if drift is not None and not drift.empty:
+        fig.add_trace(go.Scatter(x=drift.index, y=drift.values, name="Blend (drift)",
+                                 line=dict(color=T.ink2, width=1.3, dash="dot")))
+    for idx, i in enumerate(selected):
+        comp = metrics.normalize_to_100(mat[i].reindex(blend.index).dropna())
+        if not comp.empty:
+            fig.add_trace(go.Scatter(x=comp.index, y=comp.values, name=ticker_by_isin.get(i, i),
+                                     line=dict(color=T.color(idx + 2), width=1)))
+    sf(fig, height=380)
+    fig.update_yaxes(title="Indexed to 100")
+    st.plotly_chart(fig, width="stretch")
+
+    # --- Target vs drifted weights + component table ---
+    a, b = st.columns(2)
+    with a:
+        st.markdown('<p class="section-label">Target vs drifted weights</p>',
+                    unsafe_allow_html=True)
+        drift_w = portfolio.blend_weights_drift(mat, weights)
+        wf = go.Figure()
+        wf.add_trace(go.Bar(x=[ticker_by_isin.get(i, i) for i in selected],
+                            y=[weights[i] for i in selected], name="Target",
+                            marker_color=T.series[0]))
+        wf.add_trace(go.Bar(x=[ticker_by_isin.get(i, i) for i in drift_w.index],
+                            y=drift_w.values, name="If never rebalanced",
+                            marker_color=T.ink2))
+        sf(wf, height=300)
+        wf.update_layout(barmode="group")
+        wf.update_yaxes(tickformat=".0%")
+        st.plotly_chart(wf, width="stretch")
+    with b:
+        st.markdown('<p class="section-label">Lump sum vs DCA (same horizon)</p>',
+                    unsafe_allow_html=True)
+        yrs = (blend.index[-1] - blend.index[0]).days / 365.25
+        h = min(10, max(2, int(yrs)))
+        start = blend.index[-1] - pd.DateOffset(years=h)
+        wnd = blend[blend.index >= start]
+        try:
+            dca = strategy.simulate_dca(blend, monthly=500.0, start=start)
+            # Lump sum equal to total DCA contributions, invested at window start.
+            lump_units = dca.total_invested / wnd.iloc[0]
+            lump_final = lump_units * wnd.iloc[-1]
+            comp = pd.DataFrame({
+                "Strategy": ["DCA €500/mo", "Lump sum (same total)"],
+                "Invested": [dca.total_invested, dca.total_invested],
+                "Final value": [dca.final_value, lump_final],
+            })
+            render_table(comp, hide_index=True,
+                         fmt={"Invested": "{:,.0f}", "Final value": "{:,.0f}"})
+            st.caption(f"Over the last {h}y of the blend's common history. Lump sum usually "
+                       "wins in rising markets; DCA cuts timing risk.")
+        except ValueError as exc:
+            st.caption(str(exc))
+
+
 # --------------------------------------------------------------------------- router
 PAGES = {"Recommended": render_recommended, "Compare": render_compare,
-         "Screener": render_screener, "Detail": render_detail,
-         "Strategy": render_strategy, "Data": render_data}
+         "Screener": render_screener, "Portfolio": render_portfolio,
+         "Detail": render_detail, "Strategy": render_strategy, "Data": render_data}
 PAGES.get(page, render_recommended)()

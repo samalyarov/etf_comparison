@@ -126,3 +126,50 @@ def test_summary_after_ter():
     s = pd.Series(np.linspace(100, 200, 500), index=idx)
     out = metrics.summary(s, ter=0.002)
     assert out["cagr_after_ter"] == pytest.approx(out["cagr"] - 0.002)
+
+
+# --- Analytics depth: benchmark-relative, horizon distribution, regimes ---
+
+def test_beta_of_scaled_benchmark_is_one():
+    idx = pd.date_range("2020-01-01", periods=300, freq="D")
+    rng = np.random.default_rng(5)
+    b = pd.Series(100 * np.cumprod(1 + rng.normal(0, 0.01, 300)), index=idx)
+    # Fund with identical returns -> beta 1, tracking error ~0.
+    assert metrics.beta(b, b) == pytest.approx(1.0, abs=1e-6)
+    assert metrics.tracking_error(b, b) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_beta_of_2x_leverage():
+    idx = pd.date_range("2020-01-01", periods=400, freq="D")
+    rng = np.random.default_rng(6)
+    rb = rng.normal(0.0002, 0.01, 399)
+    b = pd.Series(100 * np.cumprod(np.r_[1, 1 + rb]), index=idx)
+    f = pd.Series(100 * np.cumprod(np.r_[1, 1 + 2 * rb]), index=idx)  # 2x daily returns
+    assert metrics.beta(f, b) == pytest.approx(2.0, abs=0.05)
+
+
+def test_up_down_capture_bounds():
+    idx = pd.date_range("2020-01-01", periods=400, freq="D")
+    rng = np.random.default_rng(7)
+    rb = rng.normal(0.0002, 0.01, 399)
+    b = pd.Series(100 * np.cumprod(np.r_[1, 1 + rb]), index=idx)
+    f = pd.Series(100 * np.cumprod(np.r_[1, 1 + 0.5 * rb]), index=idx)  # half the moves
+    up, down = metrics.up_down_capture(f, b)
+    assert up == pytest.approx(0.5, abs=0.1)
+    assert down == pytest.approx(0.5, abs=0.1)
+
+
+def test_horizon_return_stats_ordered():
+    idx = pd.date_range("2005-01-01", periods=5000, freq="D")
+    s = pd.Series(np.linspace(100, 500, 5000), index=idx)
+    stats = metrics.horizon_return_stats(s, 5)
+    assert stats["n"] > 0
+    assert stats["min"] <= stats["median"] <= stats["max"]
+
+
+def test_regime_returns_named_windows():
+    idx = pd.date_range("2017-01-01", periods=2500, freq="D")
+    s = pd.Series(np.linspace(100, 260, 2500), index=idx)
+    reg = metrics.regime_returns(s)
+    assert "COVID crash" in reg.index
+    assert reg.notna().any()

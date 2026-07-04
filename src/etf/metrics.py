@@ -237,6 +237,106 @@ def calendar_year_returns(prices: pd.Series) -> pd.Series:
     return returns
 
 
+# Notable market regimes for a stress lens (peak-to-trough / recovery windows, approx.).
+STRESS_REGIMES: dict[str, tuple[str, str]] = {
+    "2018 Q4 selloff": ("2018-09-20", "2018-12-24"),
+    "COVID crash": ("2020-02-19", "2020-03-23"),
+    "COVID recovery": ("2020-03-23", "2020-08-18"),
+    "2022 rate shock": ("2022-01-03", "2022-10-12"),
+    "2023–24 rally": ("2022-10-12", "2024-03-28"),
+}
+
+
+def _aligned_returns(prices: pd.Series, benchmark: pd.Series) -> pd.DataFrame:
+    """Inner-joined daily returns of a fund and a benchmark on their common dates."""
+    a = daily_returns(prices).rename("fund")
+    b = daily_returns(benchmark).rename("bench")
+    return pd.concat([a, b], axis=1, join="inner").dropna()
+
+
+def beta(prices: pd.Series, benchmark: pd.Series) -> float:
+    """Sensitivity of the fund's daily returns to the benchmark's (cov / var)."""
+    df = _aligned_returns(prices, benchmark)
+    if len(df) < 2:
+        return float("nan")
+    var_b = float(df["bench"].var(ddof=1))
+    if var_b == 0:
+        return float("nan")
+    return float(df["fund"].cov(df["bench"]) / var_b)
+
+
+def tracking_error(prices: pd.Series, benchmark: pd.Series) -> float:
+    """Annualised standard deviation of the fund-minus-benchmark daily return."""
+    df = _aligned_returns(prices, benchmark)
+    if len(df) < 2:
+        return float("nan")
+    active = df["fund"] - df["bench"]
+    return float(active.std(ddof=1) * np.sqrt(TRADING_DAYS))
+
+
+def information_ratio(prices: pd.Series, benchmark: pd.Series) -> float:
+    """Annualised active return divided by tracking error."""
+    df = _aligned_returns(prices, benchmark)
+    if len(df) < 2:
+        return float("nan")
+    active = df["fund"] - df["bench"]
+    te = float(active.std(ddof=1) * np.sqrt(TRADING_DAYS))
+    if te == 0:
+        return float("nan")
+    return float(active.mean() * TRADING_DAYS / te)
+
+
+def up_down_capture(prices: pd.Series, benchmark: pd.Series) -> tuple[float, float]:
+    """Up/down capture ratios: mean fund return vs mean benchmark return on up/down days.
+
+    >1 up-capture means the fund gains more than the benchmark on its up days; <1 down-
+    capture means it falls less on the benchmark's down days (both desirable).
+    """
+    df = _aligned_returns(prices, benchmark)
+    if len(df) < 2:
+        return float("nan"), float("nan")
+    up = df[df["bench"] > 0]
+    down = df[df["bench"] < 0]
+    up_cap = float(up["fund"].mean() / up["bench"].mean()) if len(up) and up["bench"].mean() else float("nan")
+    down_cap = float(down["fund"].mean() / down["bench"].mean()) if len(down) and down["bench"].mean() else float("nan")
+    return up_cap, down_cap
+
+
+def horizon_return_stats(prices: pd.Series, window_years: int = 10) -> dict:
+    """Distribution of total returns over every rolling ``window_years`` window.
+
+    More honest for buy-and-hold than a single trailing number: "over any N-year window
+    this fund returned X–Y%". Returns min/p25/median/p75/max and the window count.
+    """
+    rr = rolling_returns(prices, window_years).dropna()
+    if rr.empty:
+        return {"n": 0}
+    return {
+        "n": int(len(rr)),
+        "min": float(rr.min()), "p25": float(rr.quantile(0.25)),
+        "median": float(rr.median()), "p75": float(rr.quantile(0.75)),
+        "max": float(rr.max()),
+    }
+
+
+def regime_returns(prices: pd.Series, regimes: dict | None = None) -> pd.Series:
+    """Total return of the fund within each named market regime window."""
+    regimes = regimes or STRESS_REGIMES
+    s = _clean(prices)
+    out = {}
+    for name, (start, end) in regimes.items():
+        start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
+        if s.empty or s.index[0] > start_ts or s.index[-1] < start_ts:
+            out[name] = float("nan")
+            continue
+        start_val = s.asof(start_ts)
+        end_val = s.asof(end_ts)
+        out[name] = (float(end_val / start_val - 1.0)
+                     if pd.notna(start_val) and pd.notna(end_val) and start_val > 0
+                     else float("nan"))
+    return pd.Series(out)
+
+
 def monthly_returns_matrix(prices: pd.Series) -> pd.DataFrame:
     """Year x month (1-12) matrix of monthly total returns, for a heatmap."""
     s = _clean(prices)

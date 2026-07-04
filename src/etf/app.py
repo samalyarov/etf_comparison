@@ -506,6 +506,61 @@ def render_detail():
                f"{'FX conversion applies (foreign currency).' if needs_fx else 'EUR-quoted — no FX cost.'}"
                " Estimates, not tax advice.")
 
+    # --- Benchmark-relative metrics ---
+    st.markdown('<p class="section-label">Benchmark-relative</p>', unsafe_allow_html=True)
+    bench_choices = [lbl for lbl in isin_by_label if isin_by_label[lbl] != isin]
+    default_bench = next((lbl for lbl in bench_choices
+                          if ticker_by_isin.get(isin_by_label[lbl]) in
+                          ("VWCE.DE", "IWDA.AS", "SWRD.L")), bench_choices[0] if bench_choices else None)
+    if default_bench:
+        bench_label = st.selectbox("Benchmark", bench_choices,
+                                   index=bench_choices.index(default_bench))
+        bench_isin = isin_by_label[bench_label]
+        bs = px(bench_isin)
+        if not bs.empty:
+            bm = st.columns(5)
+            bm[0].metric("Beta", "—" if pd.isna(metrics.beta(s, bs)) else f"{metrics.beta(s, bs):.2f}")
+            bm[1].metric("Tracking error", pct(metrics.tracking_error(s, bs)))
+            ir = metrics.information_ratio(s, bs)
+            bm[2].metric("Information ratio", "—" if pd.isna(ir) else f"{ir:.2f}")
+            up, dn = metrics.up_down_capture(s, bs)
+            bm[3].metric("Up capture", "—" if pd.isna(up) else f"{up:.2f}")
+            bm[4].metric("Down capture", "—" if pd.isna(dn) else f"{dn:.2f}",
+                         help="Below 1.0 means it falls less than the benchmark on down days.")
+            st.caption(f"vs {ticker_by_isin.get(bench_isin, bench_isin)} on common daily "
+                       "returns. Up/down capture <1 on the downside and >1 on the upside is best.")
+
+    # --- Horizon return distribution + regime/stress lens ---
+    hz, rg = st.columns(2)
+    with hz:
+        st.markdown('<p class="section-label">Any-window returns (buy-and-hold honesty)</p>',
+                    unsafe_allow_html=True)
+        hrows = []
+        for wy in (1, 3, 5, 10):
+            st_ = metrics.horizon_return_stats(s, wy)
+            if st_.get("n"):
+                hrows.append({"Window": f"{wy}Y", "Worst": st_["min"], "Median": st_["median"],
+                              "Best": st_["max"], "Windows": st_["n"]})
+        if hrows:
+            render_table(pd.DataFrame(hrows), hide_index=True,
+                         fmt={"Worst": "{:.1%}", "Median": "{:.1%}", "Best": "{:.1%}"})
+            st.caption("Total return over every rolling window — a range, not one number.")
+        else:
+            st.caption("Not enough history for rolling-window stats.")
+    with rg:
+        st.markdown('<p class="section-label">Regime / stress lens</p>', unsafe_allow_html=True)
+        reg = metrics.regime_returns(s).dropna()
+        if not reg.empty:
+            rfig = go.Figure(go.Bar(
+                x=reg.values, y=reg.index, orientation="h",
+                marker_color=[T.good if v >= 0 else T.bad for v in reg.values]))
+            sf(rfig, height=300, showlegend=False, hovermode=False)
+            rfig.update_xaxes(tickformat=".0%")
+            st.plotly_chart(rfig, width="stretch")
+            st.caption("How it behaved in notable market regimes (approx. windows).")
+        else:
+            st.caption("No overlap with the tracked regime windows.")
+
 
 # --------------------------------------------------------------------------- Strategy (DCA)
 def render_strategy():

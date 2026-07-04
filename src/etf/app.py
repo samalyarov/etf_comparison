@@ -80,13 +80,26 @@ def trim(s: pd.Series, lookback: str) -> pd.Series:
     return s
 
 
-@st.cache_data(ttl=300)
-def get_recommended(isins: tuple[str, ...], years: int = 10, n: int = 3):
-    """Rank the universe by total return over the last ``years`` and return the top ``n``.
+# Ranking bases for the Recommended tab: label -> (board column, ascending?).
+RANK_BASES = {
+    "Total return": ("ret", False),
+    "CAGR": ("cagr", False),
+    "CAGR after TER": ("cagr_after_ter", False),
+    "Sharpe (risk-adjusted)": ("sharpe", False),
+    "Sortino": ("sortino", False),
+    "Lowest max drawdown": ("maxdd", False),  # maxdd is negative; higher (nearer 0) is better
+}
 
-    Returns ``(top_isins, leaderboard_df)``. Only ETFs with a full ``years``-year history
-    are eligible for the ranking (a fair like-for-like window); if fewer than ``n`` qualify
-    it falls back to the best full-history CAGR to fill the remaining slots.
+
+@st.cache_data(ttl=300)
+def get_recommended(isins: tuple[str, ...], years: int = 10, n: int = 3,
+                    rank_col: str = "ret"):
+    """Rank the universe over the last ``years`` and return the top ``n`` plus a board.
+
+    ``rank_col`` selects the ranking basis (see :data:`RANK_BASES`); the leaderboard carries
+    return, CAGR, CAGR-after-TER, volatility, Sharpe, Sortino and max-drawdown so the page
+    can re-sort without recomputing. Only ETFs with a full ``years``-year history are
+    eligible (a fair like-for-like window); if fewer than ``n`` qualify it fills by CAGR.
     """
     period = f"{years}Y"
     rows = []
@@ -95,15 +108,21 @@ def get_recommended(isins: tuple[str, ...], years: int = 10, n: int = 3):
         if s.empty or not metrics.has_clean_history(s):
             continue  # skip funds with corrupt price series (bad splits/adjustments)
         w = trim(s, period)
+        summ = metrics.summary(w, risk_free=0.02, ter=ter_by_isin.get(i)
+                               if "ter_by_isin" in globals() else None)
         rows.append({"isin": i, "ret": metrics.period_return(s, period),
-                     "cagr": metrics.cagr(w), "vol": metrics.annualized_volatility(w),
-                     "maxdd": metrics.max_drawdown(w)})
+                     "cagr": summ["cagr"], "cagr_after_ter": summ.get("cagr_after_ter"),
+                     "vol": summ["volatility"], "sharpe": summ["sharpe"],
+                     "sortino": summ["sortino"], "maxdd": summ["max_drawdown"]})
     board = pd.DataFrame(rows)
     if board.empty:
         return [], board
-    board = board.sort_values("ret", ascending=False, na_position="last").reset_index(drop=True)
-    top = board.dropna(subset=["ret"]).head(n)["isin"].tolist()
-    if len(top) < n:  # not enough full-history funds — fill by best CAGR
+    if rank_col not in board.columns:
+        rank_col = "ret"
+    board = board.sort_values(rank_col, ascending=False,
+                              na_position="last").reset_index(drop=True)
+    top = board.dropna(subset=[rank_col]).head(n)["isin"].tolist()
+    if len(top) < n:  # not enough qualifying funds — fill by best CAGR
         extra = board[~board["isin"].isin(top)].sort_values("cagr", ascending=False)
         top += extra.head(n - len(top))["isin"].tolist()
     return top, board
@@ -686,28 +705,36 @@ def render_data():
 
 # --------------------------------------------------------------------------- Recommended
 def render_recommended():
-    st.markdown('<p class="section-label">Top performers · total return over the last 10 years</p>',
-                unsafe_allow_html=True)
-    if not REC_ISINS:
+    st.markdown('<p class="section-label">Top performers</p>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    yrs = c1.selectbox("Lookback", [5, 10, 15], index=1)
+    basis = c2.selectbox("Rank by", list(RANK_BASES.keys()), index=0)
+    per_cat = c3.checkbox("Per-category winners", value=False,
+                          help="Show the best fund in each category instead of one leaderboard "
+                               "(avoids an all-tech top-3).")
+    rank_col, _asc = RANK_BASES[basis]
+
+    top_isins, board_df = get_recommended(tuple(etfs["isin"]), years=yrs, n=3, rank_col=rank_col)
+    if not top_isins or board_df.empty:
         st.info("Not enough price history to rank yet. Fetch data on the **Data** tab.")
         return
-    st.caption("The three UCITS ETFs with the highest total return over the last 10 years "
-               "(dividends reinvested). They are the default selection across every tab. "
+    st.caption(f"UCITS ETFs ranked by **{basis.lower()}** over the last {yrs} years "
+               "(dividends reinvested, corrupt series excluded). "
                "Past performance does not predict future returns.")
 
-    board = REC_BOARD.set_index("isin")
-    cols = st.columns(len(REC_ISINS))
-    for col, i in zip(cols, REC_ISINS):
+    board = board_df.set_index("isin")
+    cols = st.columns(len(top_isins))
+    for col, i in zip(cols, top_isins):
         r = board.loc[i]
         col.metric(ticker_by_isin[i], pct(r["ret"]),
                    delta=f"CAGR {pct(r['cagr'])}", delta_color="off")
         col.caption(name_by_isin[i])
 
-    st.markdown('<p class="section-label">Growth of 100 · last 10 years</p>',
+    st.markdown(f'<p class="section-label">Growth of 100 · last {yrs} years</p>',
                 unsafe_allow_html=True)
     fig = go.Figure()
-    for idx, i in enumerate(REC_ISINS):
-        s = trim(px(i), "10Y")
+    for idx, i in enumerate(top_isins):
+        s = trim(px(i), f"{yrs}Y")
         if s.empty:
             continue
         norm = metrics.normalize_to_100(s)
@@ -717,19 +744,29 @@ def render_recommended():
     fig.update_yaxes(title="Indexed to 100")
     st.plotly_chart(fig, width="stretch")
 
-    st.markdown('<p class="section-label">10-year leaderboard</p>', unsafe_allow_html=True)
-    lb = REC_BOARD.dropna(subset=["ret"]).head(15).copy()
+    if per_cat:
+        st.markdown('<p class="section-label">Best in each category</p>', unsafe_allow_html=True)
+        bc = board_df.dropna(subset=[rank_col]).copy()
+        bc["Category"] = bc["isin"].map(cat_by_isin)
+        winners = bc.sort_values(rank_col, ascending=False).groupby("Category").head(1)
+        lb = winners.sort_values(rank_col, ascending=False)
+    else:
+        st.markdown('<p class="section-label">Leaderboard</p>', unsafe_allow_html=True)
+        lb = board_df.dropna(subset=[rank_col]).head(15).copy()
+    lb = lb.reset_index(drop=True)
     lb.insert(0, "Rank", range(1, len(lb) + 1))
     lb["ETF"] = lb["isin"].map(name_by_isin)
     lb["Ticker"] = lb["isin"].map(ticker_by_isin)
     lb["Category"] = lb["isin"].map(cat_by_isin)
-    disp = lb[["Rank", "ETF", "Ticker", "Category", "ret", "cagr", "vol", "maxdd"]].rename(
-        columns={"ret": "10Y return", "cagr": "CAGR", "vol": "Volatility", "maxdd": "Max DD"})
+    disp = lb[["Rank", "ETF", "Ticker", "Category", "ret", "cagr", "cagr_after_ter",
+               "vol", "sharpe", "maxdd"]].rename(
+        columns={"ret": f"{yrs}Y return", "cagr": "CAGR", "cagr_after_ter": "CAGR–TER",
+                 "vol": "Volatility", "sharpe": "Sharpe", "maxdd": "Max DD"})
     render_table(disp, hide_index=True,
-                 fmt={"10Y return": "{:.2%}", "CAGR": "{:.2%}",
-                      "Volatility": "{:.2%}", "Max DD": "{:.2%}"})
-    st.caption("Ranked by total return over the last 10 years; only funds with a full "
-               "10-year history are eligible for the ranking.")
+                 fmt={f"{yrs}Y return": "{:.2%}", "CAGR": "{:.2%}", "CAGR–TER": "{:.2%}",
+                      "Volatility": "{:.2%}", "Sharpe": "{:.2f}", "Max DD": "{:.2%}"})
+    st.caption(f"Ranked by {basis.lower()} over the last {yrs} years; only funds with a full "
+               f"{yrs}-year history are eligible.")
 
 
 # --------------------------------------------------------------------------- Portfolio

@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import data, fx, metrics, strategy, theme
+from etf import costs, data, fx, metrics, strategy, theme
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -306,12 +306,22 @@ def render_compare():
         if s is None or s.empty:
             continue
         summ = metrics.summary(s, risk_free=rf, ter=ter_by_isin.get(i))
+        r = etfs[etfs["isin"] == i].iloc[0]
+        needs_fx = fx.normalized_currency(currency_by_isin.get(i)) != "EUR"
+        tco = costs.total_cost_of_ownership(
+            ter_by_isin.get(i),
+            spread=costs.estimate_spread(r.get("asset_class"), r.get("category")),
+            fx_bps=costs.FX_CONVERSION_BPS if needs_fx else 0.0,
+            replication=r.get("replication"))
+        cagr_after_cost = (summ["cagr"] - tco["total_annual"]
+                           if summ["cagr"] == summ["cagr"] else summ["cagr"])  # NaN-safe
         rows.append({"ETF": name_by_isin[i], "CAGR": summ["cagr"], "Total": summ["total_return"],
                      "Volatility": summ["volatility"], "Max DD": summ["max_drawdown"],
                      "Sharpe": summ["sharpe"], "Sortino": summ["sortino"],
-                     "TER": summ.get("ter"), "CAGR–TER": summ.get("cagr_after_ter")})
+                     "TER": summ.get("ter"), "All-in cost": tco["total_annual"],
+                     "CAGR–cost": cagr_after_cost})
     mdf = pd.DataFrame(rows).set_index("ETF")
-    pcols = ["CAGR", "Total", "Volatility", "Max DD", "TER", "CAGR–TER"]
+    pcols = ["CAGR", "Total", "Volatility", "Max DD", "TER", "All-in cost", "CAGR–cost"]
     render_table(mdf, fmt={**{c: "{:.2%}" for c in pcols},
                            "Sharpe": "{:.2f}", "Sortino": "{:.2f}"})
 
@@ -448,6 +458,34 @@ def render_detail():
         else:
             render_table(dists.tail(12), max_height=340)
 
+    # --- Cost & tax (estimated) ---
+    st.markdown('<p class="section-label">Cost &amp; tax · estimated true cost of ownership</p>',
+                unsafe_allow_html=True)
+    ter = row.get("ter")
+    acc_dist = row.get("acc_dist")
+    dist_yield = row.get("yield_ttm")
+    div_tax = st.number_input("Your dividend tax rate %", value=26.0, step=1.0,
+                              min_value=0.0, max_value=60.0) / 100.0
+    needs_fx = native_ccy != "EUR"
+    tco = costs.total_cost_of_ownership(
+        ter, spread=costs.estimate_spread(row.get("asset_class"), row.get("category")),
+        fx_bps=costs.FX_CONVERSION_BPS if needs_fx else 0.0, holding_years=10,
+        replication=row.get("replication"))
+    tdrag = costs.tax_drag(dist_yield, acc_dist, dividend_tax=div_tax)
+    cg = st.columns(5)
+    cg[0].metric("TER", pct(ter))
+    cg[1].metric("Tracking diff (est.)", pct(tco["tracking_difference"]))
+    cg[2].metric("Spread + FX (ann.)", pct(tco["spread_annual"] + tco["fx_annual"]))
+    cg[3].metric("All-in cost/yr", pct(tco["total_annual"]),
+                 help="TER + tracking difference + amortised spread/FX. Subtract from CAGR.")
+    cg[4].metric("Tax drag/yr", pct(tdrag),
+                 delta=("deferred (ACC)" if (acc_dist or "").upper().startswith("ACC")
+                        else "taxed (DIST)"), delta_color="off")
+    st.caption(f"{'Accumulating' if (acc_dist or '').upper().startswith('ACC') else 'Distributing'}"
+               f" · {costs.domicile_note(row.get('domicile'))} "
+               f"{'FX conversion applies (foreign currency).' if needs_fx else 'EUR-quoted — no FX cost.'}"
+               " Estimates, not tax advice.")
+
 
 # --------------------------------------------------------------------------- Strategy (DCA)
 def render_strategy():
@@ -461,7 +499,13 @@ def render_strategy():
     initial = c3.number_input("Initial lump", value=0, step=500, min_value=0)
     step_up = c4.number_input("Step-up %/yr", value=0.0, step=1.0) / 100.0
 
+    o1, o2 = st.columns([1, 3])
+    include_costs = o1.checkbox("Include IBKR costs", value=True,
+                                help="Deduct broker commission (min €1.25/order, 0.035%) and "
+                                     "FX conversion cost from each contribution.")
+
     isin = isin_by_label[label]
+    native_ccy = fx.normalized_currency(currency_by_isin.get(isin))
     s = px(isin)
     if s.empty:
         st.warning("No price history for this ETF.")
@@ -473,9 +517,12 @@ def render_strategy():
                         value=min(10, max(2, int(years_available))))
     start = s.index[-1] - pd.DateOffset(years=horizon)
 
+    commission = costs.DEFAULT_COMMISSION if include_costs else None
     try:
         res = strategy.simulate_dca(s, monthly=float(monthly), initial=float(initial),
-                                    start=start, annual_step_up=step_up)
+                                    start=start, annual_step_up=step_up,
+                                    commission=commission, currency=native_ccy,
+                                    account_currency="EUR")
     except ValueError as exc:
         st.warning(str(exc))
         return
@@ -486,7 +533,8 @@ def render_strategy():
     m[2].metric("Profit", money(res.profit),
                 delta=f"{res.money_multiple:.2f}× money")
     m[3].metric("XIRR (ann.)", pct(res.xirr))
-    m[4].metric("Contributions", f"{res.n_contributions}")
+    m[4].metric("Costs paid", money(res.total_costs) if include_costs else "—",
+                help="Total commissions + FX conversion cost deducted over the plan.")
     if EUR_MODE:
         ccy_note = "amounts in EUR (FX-normalised)"
     else:

@@ -31,3 +31,5 @@ Thumbs.db
 
 # Miscellaneous
 brain/
+.claude
+CLAUDE.md

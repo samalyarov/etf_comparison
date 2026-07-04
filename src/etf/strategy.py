@@ -27,6 +27,7 @@ class DCAResult:
     start: pd.Timestamp
     end: pd.Timestamp
     contributions: pd.Series = field(repr=False)  # date -> amount (cashflows out)
+    total_costs: float = 0.0       # commissions + FX paid over the plan (already deducted)
 
 
 def _month_starts(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -43,6 +44,9 @@ def simulate_dca(
     end=None,
     initial: float = 0.0,
     annual_step_up: float = 0.0,
+    commission=None,
+    currency: str = "EUR",
+    account_currency: str = "EUR",
 ) -> DCAResult:
     """Simulate investing ``monthly`` on the first trading day of each month.
 
@@ -50,6 +54,11 @@ def simulate_dca(
     ``annual_step_up`` increases the monthly amount by that fraction every 12 months
     (e.g. 0.03 = +3%/yr to track raises/inflation). Buys are fractional; prices are
     the total-return (adjusted-close) series.
+
+    If ``commission`` (a :class:`etf.costs.CommissionModel`) is given, a broker commission
+    and FX-conversion cost is deducted from each contribution before units are bought, so
+    the result is net of trading friction. ``currency`` is the fund's quote currency and
+    ``account_currency`` the funding currency (FX cost applies when they differ).
     """
     s = pd.to_numeric(prices, errors="coerce").dropna().sort_index()
     if start is not None:
@@ -61,15 +70,20 @@ def simulate_dca(
 
     buy_days = _month_starts(s.index)
     contributions: dict[pd.Timestamp, float] = {}
+    invested_after_costs: dict[pd.Timestamp, float] = {}
+    total_costs = 0.0
     for i, day in enumerate(buy_days):
         amount = monthly * ((1 + annual_step_up) ** (i // 12))
         if i == 0:
             amount += initial
         contributions[day] = amount
+        cost = commission.buy_cost(amount, currency, account_currency) if commission else 0.0
+        total_costs += cost
+        invested_after_costs[day] = max(amount - cost, 0.0)
 
-    # Build cumulative units held over the whole daily index.
+    # Build cumulative units held over the whole daily index (bought with net-of-cost cash).
     contrib_units = pd.Series(
-        {day: contributions[day] / s.loc[day] for day in buy_days}
+        {day: invested_after_costs[day] / s.loc[day] for day in buy_days}
     ).sort_index()
     cum_units = contrib_units.cumsum().reindex(s.index, method="ffill").fillna(0.0)
     invested = pd.Series(contributions).sort_index().cumsum().reindex(
@@ -94,6 +108,7 @@ def simulate_dca(
         start=s.index[0],
         end=s.index[-1],
         contributions=contrib_series,
+        total_costs=total_costs,
     )
 
 

@@ -73,6 +73,26 @@ def _fetch_with_retry(source, ticker, start, end, retries=3):
     raise last_exc  # type: ignore[misc]
 
 
+def _has_recent_distribution(sources, ticker: str, since: date) -> bool:
+    """True if Yahoo reports a dividend with ex-date >= ``since`` (drives full-refetch)."""
+    for source in sources:
+        if isinstance(source, YahooSource):
+            try:
+                divs = source.get_dividends(ticker)
+            except Exception:  # noqa: BLE001
+                return False
+            return any(d >= since for d, _ in divs)
+    return False
+
+
+def data_age_days(conn) -> int | None:
+    """Days since the most recent stored price across the universe (None if empty)."""
+    row = conn.execute("SELECT MAX(date) FROM prices").fetchone()
+    if not row or not row[0]:
+        return None
+    return (date.today() - date.fromisoformat(row[0])).days
+
+
 def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> bool:
     """Fetch and store prices + dividends for one instrument. Returns True on success."""
     db.upsert_instrument(conn, inst)
@@ -89,6 +109,12 @@ def ingest_instrument(conn, inst: Instrument, sources, *, incremental: bool) -> 
         last = db.last_price_date(conn, inst.isin)
         if last is not None:
             start = last - timedelta(days=5)  # small overlap to catch restatements
+            # Incremental correctness: a distribution inside the gap retro-adjusts the whole
+            # adj_close series, so an incremental fetch would drift. If any dividend has an
+            # ex-date at/after the incremental start, force a FULL refetch for this fund.
+            if _has_recent_distribution(sources, inst.ticker, start):
+                print(f"  ↻ {inst.ticker:<10} distribution in gap → forcing full refetch")
+                start = None
     end = date.today() + timedelta(days=1)
 
     for source in sources:
@@ -274,6 +300,22 @@ def repair_stored(only: str | None = None) -> dict:
     return counts
 
 
+def run_if_stale(max_age_days: int = 7, **kwargs) -> dict:
+    """Run a full ingest only if the stored data is older than ``max_age_days``.
+
+    Designed for an unattended weekly job (Windows Task Scheduler / cron) so a machine that
+    was off doesn't skip a refresh, but a fresh DB isn't re-fetched needlessly.
+    """
+    db.init_db()
+    with db.connect() as conn:
+        age = data_age_days(conn)
+    if age is not None and age < max_age_days:
+        print(f"Data is {age} day(s) old (< {max_age_days}) — skipping fetch.")
+        return {"skipped": True, "age_days": age}
+    print(f"Data is {age} day(s) old — refreshing.")
+    return run(**kwargs)
+
+
 def run(only: str | None = None, sources_order: list[str] | None = None,
         incremental: bool = False) -> dict:
     """Ingest the whole watchlist (or one instrument). Returns a small summary dict."""
@@ -331,9 +373,18 @@ def main(argv: list[str] | None = None) -> int:
         "--facts", action="store_true",
         help="Backfill fund fundamentals (AUM/inception) + macro series (network).",
     )
+    parser.add_argument(
+        "--if-stale", type=int, metavar="DAYS", default=None,
+        help="Only fetch if stored data is older than DAYS (for a scheduled weekly job).",
+    )
     args = parser.parse_args(argv)
     if args.repair:
         repair_stored(only=args.only)
+        return 0
+    if args.if_stale is not None:
+        order = [s.strip() for s in args.sources.split(",")] if args.sources else None
+        run_if_stale(args.if_stale, only=args.only, sources_order=order,
+                     incremental=args.incremental)
         return 0
     if args.fx:
         backfill_fx(only=args.only)

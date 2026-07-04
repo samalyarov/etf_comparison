@@ -33,3 +33,4 @@ Thumbs.db
 brain/
 .claude
 CLAUDE.md
+scripts/failures.yaml

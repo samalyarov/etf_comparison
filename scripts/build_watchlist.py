@@ -20,6 +20,39 @@ import yaml
 HERE = Path(__file__).resolve().parent
 CANDIDATES_PATH = HERE / "candidates.yaml"
 WATCHLIST_PATH = HERE.parent / "watchlist.yaml"
+FAILURES_PATH = HERE / "failures.yaml"
+
+# Auto-drop a candidate after it fails verification this many consecutive runs.
+DROP_AFTER_FAILURES = 3
+
+
+def load_failures(path: Path = FAILURES_PATH) -> dict[str, int]:
+    """Load the {isin: consecutive_failure_count} curation ledger."""
+    if not path.exists():
+        return {}
+    return dict((yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("failures", {}))
+
+
+def update_failures(existing: dict[str, int], resolved_isins: set[str],
+                    unresolved_isins: set[str]) -> dict[str, int]:
+    """Increment the fail count for unresolved candidates, reset it for resolved ones.
+
+    A pure function (no I/O) so it is unit-testable: candidates that resolve this run drop
+    out of the ledger; those that fail again have their streak incremented.
+    """
+    updated = {i: existing.get(i, 0) + 1 for i in unresolved_isins}
+    # Resolved candidates clear their streak (removed from the ledger).
+    for i in resolved_isins:
+        updated.pop(i, None)
+    return updated
+
+
+def save_failures(failures: dict[str, int], path: Path = FAILURES_PATH) -> None:
+    if failures:
+        path.write_text(yaml.safe_dump({"failures": failures}, sort_keys=True),
+                        encoding="utf-8")
+    elif path.exists():
+        path.unlink()
 
 # Fields copied through to the verified watchlist (in this order).
 OUTPUT_FIELDS = ["isin", "ticker", "name", "category", "asset_class",
@@ -100,16 +133,31 @@ def write_watchlist(resolved: list[dict], path: Path = WATCHLIST_PATH) -> None:
 
 def main() -> int:
     candidates = load_candidates()
-    print(f"Loaded {len(candidates)} candidates from {CANDIDATES_PATH.name}\n")
-    resolved, unresolved = resolve(candidates)
+    failures = load_failures()
+    # Config-driven curation: skip candidates that have failed verification repeatedly.
+    demoted = {i for i, n in failures.items() if n >= DROP_AFTER_FAILURES}
+    active = [c for c in candidates if c["isin"] not in demoted]
+    print(f"Loaded {len(candidates)} candidates from {CANDIDATES_PATH.name}"
+          f" ({len(demoted)} auto-dropped after ≥{DROP_AFTER_FAILURES} failures)\n")
+
+    resolved, unresolved = resolve(active)
     write_watchlist(resolved)
 
-    n_final = len({c["isin"] for c in resolved})
+    # Update the failure ledger (streak++ for still-failing, cleared for resolved).
+    resolved_isins = {c["isin"] for c in resolved}
+    unresolved_isins = {c["isin"] for c in unresolved}
+    save_failures(update_failures(failures, resolved_isins, unresolved_isins))
+
+    n_final = len(resolved_isins)
     print(f"\nResolved {n_final}/{len(candidates)} ETFs -> {WATCHLIST_PATH}")
     if unresolved:
-        print("Could not resolve (dropped):")
+        print("Could not resolve this run (failure streak incremented):")
         for c in unresolved:
-            print(f"  - {c['name']} ({c['isin']}) tried {c['tickers']}")
+            streak = failures.get(c["isin"], 0) + 1
+            print(f"  - {c['name']} ({c['isin']}) tried {c['tickers']} [fails={streak}]")
+    if demoted:
+        print(f"Auto-dropped (≥{DROP_AFTER_FAILURES} consecutive failures): "
+              + ", ".join(sorted(demoted)))
     return 0
 
 

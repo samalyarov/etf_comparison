@@ -819,6 +819,8 @@ def render_data():
                 st.cache_data.clear()
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Ingest failed: {exc}")
+    st.caption("For an unattended weekly refresh, schedule `python -m etf.ingest --if-stale 7` "
+               "(Windows Task Scheduler / cron) — it only fetches when data is >7 days old.")
 
     # --- Data-quality health: GBX/GBP repairs, bad prints, and suspect series ---
     st.markdown('<p class="section-label">Data health</p>', unsafe_allow_html=True)

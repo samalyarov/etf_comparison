@@ -10,24 +10,39 @@ live in a local, git-ignored `brain/` knowledge base.
 
 - **Ingests** end-of-day price history (+ dividends) for a watchlist of ~88 UCITS ETFs
   (across 15 categories) from Yahoo Finance, with Tiingo and Stooq as fallbacks, into a
-  local **SQLite** database.
-- **Computes** returns (trailing, CAGR, calendar-year, rolling), volatility (incl. rolling),
-  Sharpe/Sortino, max drawdown, correlation, and DCA backtests — all total-return basis.
+  local **SQLite** database. **Data-quality repair is built into ingestion**: GBX/GBP
+  (pence↔pounds) mis-denomination and isolated bad prints are auto-detected and fixed, and
+  anything still suspect (e.g. an unadjusted split) is flagged rather than trusted.
+- **Normalises currency**: the universe mixes EUR/GBP/GBp/USD/CHF; a Native/**EUR** toggle
+  FX-converts everything for honest comparison and DCA (rates cached locally).
+- **Computes** returns (trailing, CAGR, calendar-year, rolling), volatility, Sharpe/Sortino,
+  max drawdown, correlation, DCA backtests, **benchmark-relative** metrics (beta, tracking
+  error, information ratio, up/down capture), **rolling-window return distributions**, a
+  **regime/stress lens**, and an all-in **cost & tax** model (IBKR commissions, tracking
+  difference, spread/FX, EU dividend-tax drag, domicile notes) — all total-return basis.
 - **Presents** it in a themed **Streamlit** UI (switchable **Light / Dark** — a Tokyo Night
-  palette) with a top nav and six pages:
-  - **Recommended** — the three ETFs with the highest total return over the last 10 years
-    (the app-wide default selection), a growth chart, and a 10-year leaderboard.
+  palette) with a top nav and seven pages:
+  - **Recommended** — selectable ranking (return / CAGR / CAGR-after-TER / Sharpe / Sortino
+    / lowest drawdown), 5/10/15y lookback, per-category winners, and a market-context strip
+    (US 10Y yield, VIX).
   - **Compare** — growth of 100, calendar-year & drawdown, risk-vs-return scatter,
-    correlation heatmap, risk/return + trailing-return tables.
-  - **Screener** — a risk-return map of the whole universe + a filterable table.
-  - **Detail** — single-ETF price, monthly-return heatmap, rolling volatility/return.
-  - **Strategy** — a dollar-cost-averaging backtest ("invest X/month for Y years") with
-    final value, profit, money-multiple and XIRR.
-  - **Data** — coverage/freshness and a one-click fetch.
+    correlation heatmap, risk/return (incl. all-in cost & CAGR-after-cost) + trailing tables.
+  - **Screener** — a risk-return map of the whole universe, a filterable/taggable table,
+    favourites filter, and CSV export.
+  - **Portfolio** — build a weighted blend, rebalanced backtest (vs drift), blended metrics,
+    low-correlation suggestions, lump-sum-vs-DCA, and a contribution-only **rebalancing
+    assistant** (paste your holdings).
+  - **Detail** — price, monthly-return heatmap, rolling vol/return, cost & tax panel,
+    benchmark-relative + regime + any-window-returns panels, an opt-in local **sentiment**
+    read, fund fact-sheet download, and a persisted favourite/tag.
+  - **Strategy** — a DCA backtest (net of commissions/FX) **plus a forward projection**
+    (OLS trend or Monte-Carlo/bootstrap fan) of net worth up to 40 years.
+  - **Data** — coverage/freshness, a data-health report, staleness flags, and a fetch button.
 - Keeps the raw data in a plain `.db` you can query with any SQL client.
 
 The ETF universe is generated + verified against Yahoo by `scripts/build_watchlist.py`
-(re-run it to extend the list). Charts use a colourblind-validated palette.
+(re-run it to extend the list; it auto-drops tickers that fail verification repeatedly).
+Charts use a colourblind-validated palette. Preferences and tags persist between sessions.
 
 ## Architecture
 
@@ -52,17 +67,19 @@ flowchart TD
     subgraph ING["Ingest — src/etf/ingest"]
         AD["Source adapters<br/>one common interface"]
         ORC["Orchestrator + CLI<br/>python -m etf.ingest"]
+        QC["quality.py<br/>GBX/GBP repair · de-spike · flag"]
     end
 
-    DB[("SQLite<br/>data/etf.db<br/>instruments · prices ·<br/>distributions · fund_facts · log")]
+    DB[("SQLite<br/>data/etf.db<br/>instruments · prices · distributions ·<br/>fund_facts · fx_rates · macro · data_health · log")]
 
     subgraph ANA["Analyse — src/etf"]
-        MET["metrics.py<br/>returns · risk · correlation"]
-        STR["strategy.py<br/>DCA backtest · XIRR"]
+        MET["metrics.py<br/>returns · risk · correlation · benchmark"]
+        STR["strategy.py · projection.py<br/>DCA · XIRR · Monte-Carlo"]
+        POR["portfolio.py · costs.py · fx.py<br/>blends · cost/tax · currency"]
     end
 
     subgraph PRE["Present"]
-        UI["Streamlit app · app.py<br/>Recommended · Compare · Screener ·<br/>Detail · Strategy · Data"]
+        UI["Streamlit app · app.py<br/>Recommended · Compare · Screener · Portfolio ·<br/>Detail · Strategy · Data"]
         RAW["Raw SQL / pandas<br/>(any DB client)"]
     end
 
@@ -72,9 +89,10 @@ flowchart TD
     Y --> AD
     TI --> AD
     ST --> AD
-    AD --> ORC --> DB
+    AD --> QC --> ORC --> DB
     DB --> MET --> UI
     DB --> STR --> UI
+    DB --> POR --> UI
     DB --> RAW
     THEME -.-> UI
 ```
@@ -97,14 +115,21 @@ any key; Tiingo is used as a fallback where it has coverage).
 
 ```powershell
 # 1. Fetch data for everything in watchlist.yaml (creates data/etf.db)
-python -m etf.ingest                 # full history
+python -m etf.ingest                 # full history (repairs + FX rates included)
 python -m etf.ingest --incremental   # only new rows since last run (faster)
 python -m etf.ingest --only CSPX.L   # a single ETF
 python -m etf.ingest --sources tiingo,yahoo,stooq   # change source priority
+python -m etf.ingest --if-stale 7    # only fetch if data >7 days old (scheduled job)
+python -m etf.ingest --repair        # re-run data-quality repair, no network
+python -m etf.ingest --fx            # backfill quote currencies + EUR FX rates
+python -m etf.ingest --facts         # backfill AUM/inception + macro (10Y yield, VIX)
 
 # 2. Launch the UI
 streamlit run src/etf/app.py
 ```
+
+For an unattended weekly refresh, point Windows Task Scheduler / cron at
+`python -m etf.ingest --if-stale 7`.
 
 Add/remove ETFs by editing [scripts/candidates.yaml](scripts/candidates.yaml) (each entry
 lists candidate Yahoo tickers — `.DE` Xetra, `.L` London, `.AS` Amsterdam), then run
@@ -131,14 +156,19 @@ ruff check src tests
 
 ## Layout
 
-- `src/etf/` — `config`, `db`, `data`, `metrics`, `strategy` (DCA), `theme`, `ingest/`
-  (source adapters), `app.py` (UI).
-- `scripts/build_watchlist.py` — regenerates/verifies `watchlist.yaml` from a candidate list.
-- `data/etf.db` — local SQLite database (git-ignored, regenerable via ingest).
+- `src/etf/` — `config`, `db`, `data`, `quality` (data-quality repair), `fx` (currency
+  normalisation), `costs` (cost & tax model), `metrics`, `strategy` (DCA), `projection`
+  (forward projections), `portfolio` (blends + rebalancing), `sentiment` (local scorer),
+  `settings` (persisted prefs), `theme`, `ingest/` (source adapters), `app.py` (UI).
+- `scripts/build_watchlist.py` — regenerates/verifies `watchlist.yaml`; auto-drops tickers
+  that fail verification repeatedly (`scripts/failures.yaml` ledger, git-ignored).
+- `data/etf.db` — local SQLite database (git-ignored, regenerable via ingest). Also holds
+  `data_health`, `fx_rates`, `macro_series`; `data/settings.json` stores UI preferences.
 - `watchlist.yaml` — the ETFs to track (auto-generated).
-- `tests/` — unit tests for the analytics and strategy layers.
+- `tests/` — unit tests for analytics, quality, FX, costs, projections, portfolio,
+  sentiment and robustness, plus UI/theme smoke tests.
 
 ## Stack
 
-Python 3.13 · SQLite · pandas · yfinance (→ Tiingo/Stooq) · Streamlit + Plotly ·
+Python 3.13 · SQLite · pandas / numpy · yfinance (→ Tiingo/Stooq) · Streamlit + Plotly ·
 streamlit-option-menu.

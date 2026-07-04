@@ -17,7 +17,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import costs, data, fx, metrics, portfolio, projection, sentiment, strategy, theme
+from etf import (costs, data, fx, metrics, portfolio, projection, sentiment, settings,
+                 strategy, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -141,8 +142,11 @@ etfs = get_etfs()
 n_etfs = len(etfs)
 n_cats = etfs["category"].nunique() if not etfs.empty else 0
 
+if "settings" not in st.session_state:
+    st.session_state.settings = settings.load()
+SETTINGS = st.session_state.settings
 if "theme" not in st.session_state:
-    st.session_state.theme = theme.DEFAULT_THEME
+    st.session_state.theme = SETTINGS.get("theme", theme.DEFAULT_THEME)
 
 left, mid, right = st.columns([3, 1, 1])
 with left:
@@ -150,7 +154,8 @@ with left:
                 '<p class="app-sub">Local research desk for UCITS ETFs · '
                 f'{n_etfs} funds across {n_cats} categories</p>', unsafe_allow_html=True)
 with mid:
-    cur_choice = st.radio("Currency", ["Native", "EUR"], horizontal=True,
+    _cur_default = ["Native", "EUR"].index(SETTINGS.get("currency", "Native"))
+    cur_choice = st.radio("Currency", ["Native", "EUR"], horizontal=True, index=_cur_default,
                           label_visibility="collapsed",
                           help="Native = each fund's own quote currency (mixed). "
                                "EUR = FX-normalised for honest comparison.")
@@ -162,6 +167,12 @@ with right:
 
 EUR_MODE = cur_choice == "EUR"
 CUR = "EUR" if EUR_MODE else None  # None => native/mixed
+
+# Persist preference changes (theme, currency) between sessions.
+if SETTINGS.get("theme") != st.session_state.theme or SETTINGS.get("currency") != cur_choice:
+    SETTINGS["theme"] = st.session_state.theme
+    SETTINGS["currency"] = cur_choice
+    settings.save(SETTINGS)
 
 T = theme.THEMES[st.session_state.theme]
 st.markdown(theme.css(T), unsafe_allow_html=True)
@@ -370,16 +381,24 @@ def render_screener():
     pick_cat = f1.multiselect("Category", cats, default=cats)
     lookback = f2.selectbox("Metrics lookback", ["Max", "10Y", "5Y", "3Y", "1Y"], index=2)
 
+    favs = SETTINGS.get("favourites", {})
+    only_favs = f1.checkbox("★ Favourites only", value=False)
     view = etfs[etfs["category"].isin(pick_cat)] if pick_cat else etfs
+    if only_favs:
+        view = view[view["isin"].isin(favs.keys())]
     rows = []
     for _, r in view.iterrows():
         s = trim(px(r["isin"]), lookback)
         summ = metrics.summary(s, ter=r.get("ter")) if not s.empty else {}
-        rows.append({"Name": r["name"], "Ticker": r["ticker"], "Category": r["category"],
-                     "Class": r.get("asset_class"), "TER": r.get("ter"),
-                     "CAGR": summ.get("cagr"), "Vol": summ.get("volatility"),
-                     "Max DD": summ.get("max_drawdown"), "Sharpe": summ.get("sharpe")})
+        rows.append({"Tag": favs.get(r["isin"], ""), "Name": r["name"], "Ticker": r["ticker"],
+                     "Category": r["category"], "Class": r.get("asset_class"),
+                     "TER": r.get("ter"), "CAGR": summ.get("cagr"),
+                     "Vol": summ.get("volatility"), "Max DD": summ.get("max_drawdown"),
+                     "Sharpe": summ.get("sharpe")})
     sdf = pd.DataFrame(rows)
+    if sdf.empty:
+        st.info("No funds match — clear the favourites filter or pick a category.")
+        return
 
     # Risk-return scatter of the whole (filtered) universe, coloured by asset class.
     st.markdown('<p class="section-label">Risk vs return — universe map</p>',
@@ -406,6 +425,8 @@ def render_screener():
     render_table(sdf, hide_index=True, max_height=460,
                  fmt={"TER": "{:.2%}", "CAGR": "{:.2%}", "Vol": "{:.2%}",
                       "Max DD": "{:.2%}", "Sharpe": "{:.2f}"})
+    st.download_button("⇩ Export screener (CSV)", sdf.to_csv(index=False).encode("utf-8"),
+                       file_name="etf_screener.csv", mime="text/csv")
 
 
 # --------------------------------------------------------------------------- Detail
@@ -445,6 +466,18 @@ def render_detail():
     st.caption(f"ISIN {row['isin']} · {row.get('index_name') or ''} · quoted in {native_ccy}"
                f"{'  → shown in EUR' if EUR_MODE else ''}")
 
+    # Favourite / tag this fund (persisted).
+    favs = SETTINGS.get("favourites", {})
+    tag_opts = ["— none —"] + settings.TAGS
+    cur_tag = favs.get(isin, "— none —")
+    tsel = st.selectbox("Tag / favourite", tag_opts,
+                        index=tag_opts.index(cur_tag) if cur_tag in tag_opts else 0,
+                        help='Tag this fund as "core", "satellite" or "considering". '
+                             "Tags persist and appear on the Screener.")
+    new_tag = None if tsel == "— none —" else tsel
+    if favs.get(isin) != new_tag:
+        settings.set_favourite(SETTINGS, isin, new_tag)
+
     s = px(isin)
     if s.empty:
         st.warning("No price history stored yet.")
@@ -457,6 +490,21 @@ def render_detail():
     k[2].metric("Volatility", pct(summ["volatility"]))
     k[3].metric("Max drawdown", pct(summ["max_drawdown"]))
     k[4].metric("Sharpe", "—" if pd.isna(summ["sharpe"]) else f"{summ['sharpe']:.2f}")
+
+    # Print-friendly fact sheet (single-view download).
+    factsheet = (
+        f"# {row['name']} ({row['ticker']})\n\n"
+        f"- ISIN: {row['isin']}\n- Index: {row.get('index_name') or '—'}\n"
+        f"- Category: {row.get('category') or '—'} · {row.get('asset_class') or '—'}\n"
+        f"- Domicile: {row.get('domicile') or '—'} · {row.get('acc_dist') or '—'} · "
+        f"quoted {native_ccy}\n- TER: {pct(row.get('ter'))} · AUM: {aum_txt} · "
+        f"Track record: {age_txt}\n\n## Performance ({s.index[0].date()} → {s.index[-1].date()})\n"
+        f"- CAGR: {pct(summ['cagr'])} · Total return: {pct(summ['total_return'])}\n"
+        f"- Volatility: {pct(summ['volatility'])} · Max drawdown: {pct(summ['max_drawdown'])}\n"
+        f"- Sharpe: {summ['sharpe']:.2f} · Sortino: {summ['sortino']:.2f}\n\n"
+        f"_Generated by ETF Comparison. Past performance does not predict future returns._\n")
+    st.download_button("⇩ Download fact sheet (Markdown)", factsheet.encode("utf-8"),
+                       file_name=f"{row['ticker']}_factsheet.md", mime="text/markdown")
 
     st.markdown('<p class="section-label">Price history · adjusted close</p>',
                 unsafe_allow_html=True)

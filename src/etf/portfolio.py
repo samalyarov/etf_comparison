@@ -12,10 +12,68 @@ Also here: :func:`rebalance_comparison` (rebalanced vs let-it-drift) and
 
 from __future__ import annotations
 
+import csv
+import io
+
 import numpy as np
 import pandas as pd
 
 REBALANCE_FREQ = {"Monthly": "M", "Quarterly": "Q", "Annually": "A", "Never": None}
+
+
+def parse_positions(text: str) -> dict[str, float]:
+    """Parse pasted/uploaded holdings into ``{symbol: amount}``.
+
+    Accepts CSV or whitespace-separated ``symbol, amount`` rows (a header is tolerated and
+    skipped). ``amount`` is interpreted by the caller as either units or value. Blank lines
+    and unparseable rows are ignored so a messy paste still works.
+    """
+    out: dict[str, float] = {}
+    if not text or not text.strip():
+        return out
+    reader = csv.reader(io.StringIO(text.strip()), skipinitialspace=True)
+    for parts in reader:
+        if len(parts) == 1:
+            parts = parts[0].split()
+        if len(parts) < 2:
+            continue
+        sym = parts[0].strip().upper()
+        try:
+            amt = float(parts[1].replace(",", "").replace("€", "").replace("$", "").strip())
+        except ValueError:
+            continue  # header row or junk
+        if sym:
+            out[sym] = out.get(sym, 0.0) + amt
+    return out
+
+
+def contribution_rebalance(current_values: dict[str, float], target_weights: dict[str, float],
+                           contribution: float) -> dict[str, float]:
+    """Allocate a new contribution to move toward target weights **without selling**.
+
+    Tax-aware, contribution-only rebalancing: buy the underweight funds. The contribution is
+    split across funds in proportion to how far each is *below* its target value; if every
+    fund is already at/above target the money is split by target weight. Returns per-fund
+    buy amounts summing to ``contribution``.
+    """
+    if contribution <= 0 or not target_weights:
+        return {k: 0.0 for k in target_weights}
+    tot_w = sum(w for w in target_weights.values() if w > 0) or 1.0
+    tw = {k: (w / tot_w) for k, w in target_weights.items()}
+    total_after = sum(current_values.get(k, 0.0) for k in tw) + contribution
+    deficits = {k: max(tw[k] * total_after - current_values.get(k, 0.0), 0.0) for k in tw}
+    total_deficit = sum(deficits.values())
+    if total_deficit <= 1e-9:  # already balanced — split by target weight
+        return {k: contribution * tw[k] for k in tw}
+    scale = min(1.0, contribution / total_deficit)
+    buys = {k: deficits[k] * scale for k in tw}
+    # If contribution exceeds what's needed to reach targets, spread the excess by weight.
+    spent = sum(buys.values())
+    excess = contribution - spent
+    if excess > 1e-9:
+        for k in tw:
+            buys[k] += excess * tw[k]
+    return buys
 
 
 def _aligned(prices: pd.DataFrame, weights: dict[str, float]) -> tuple[pd.DataFrame, np.ndarray]:

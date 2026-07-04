@@ -71,3 +71,36 @@ def test_empty_weights_returns_empty():
     P = _matrix()
     assert portfolio.blend_index(P, {}).empty
     assert portfolio.blend_index(P, {"A": 0, "B": 0}).empty
+
+
+# --- Manual import + contribution-only rebalancing ---
+
+def test_parse_positions_csv_and_whitespace():
+    txt = "ticker,units\nVWCE.DE, 10\nCSPX.L 5\nIWDA.AS,2.5\n"
+    pos = portfolio.parse_positions(txt)
+    assert pos["VWCE.DE"] == 10 and pos["CSPX.L"] == 5 and pos["IWDA.AS"] == 2.5
+
+
+def test_parse_positions_ignores_junk_and_currency():
+    pos = portfolio.parse_positions("Symbol,Value\nVWCE.DE,€1000\nbadrow\nCSPX.L,$500")
+    assert pos["VWCE.DE"] == 1000 and pos["CSPX.L"] == 500
+
+
+def test_contribution_rebalance_targets_underweight():
+    current = {"A": 8000, "B": 2000}   # 80/20, target 50/50 -> B underweight
+    buys = portfolio.contribution_rebalance(current, {"A": 0.5, "B": 0.5}, 2000)
+    assert buys["B"] > buys["A"]       # more of the new money goes to the laggard
+    assert abs(sum(buys.values()) - 2000) < 1e-6
+
+
+def test_contribution_rebalance_balanced_splits_by_weight():
+    current = {"A": 5000, "B": 5000}   # already at 50/50
+    buys = portfolio.contribution_rebalance(current, {"A": 0.5, "B": 0.5}, 1000)
+    assert abs(buys["A"] - 500) < 1e-6 and abs(buys["B"] - 500) < 1e-6
+
+
+def test_contribution_rebalance_sums_to_contribution():
+    current = {"A": 1000, "B": 0, "C": 3000}
+    buys = portfolio.contribution_rebalance(current, {"A": 0.3, "B": 0.3, "C": 0.4}, 5000)
+    assert abs(sum(buys.values()) - 5000) < 1e-6
+    assert all(v >= -1e-9 for v in buys.values())

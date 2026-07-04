@@ -1081,6 +1081,48 @@ def render_portfolio():
         except ValueError as exc:
             st.caption(str(exc))
 
+    # --- Import current holdings + rebalancing assistant ---
+    st.markdown('<p class="section-label">Rebalancing assistant · import your holdings</p>',
+                unsafe_allow_html=True)
+    st.caption("Paste your current positions (one `TICKER, amount` per line). Then set a "
+               "contribution and see what to buy next to drift toward the target weights "
+               "above — buy-only, so no taxable selling.")
+    imode = st.radio("Amounts are", ["Value (€)", "Units"], horizontal=True)
+    raw_pos = st.text_area("Positions", height=110,
+                           placeholder="VWCE.DE, 5000\nEIMI.L, 1500\nAGGH.DE, 2000")
+    parsed = portfolio.parse_positions(raw_pos)
+    if parsed:
+        ticker_to_isin = {t: i for i, t in ticker_by_isin.items()}
+        current_values: dict[str, float] = {}
+        for sym, amt in parsed.items():
+            i = ticker_to_isin.get(sym)
+            if not i:
+                continue
+            if imode == "Units":
+                p = px(i)
+                current_values[i] = amt * float(p.iloc[-1]) if not p.empty else 0.0
+            else:
+                current_values[i] = amt
+        # Only rebalance funds that are in the target blend.
+        tgt = {i: weights.get(i, 0.0) for i in selected}
+        contribution = st.number_input("Next contribution (€)", value=1000, step=100, min_value=0)
+        buys = portfolio.contribution_rebalance(
+            {i: current_values.get(i, 0.0) for i in selected}, tgt, float(contribution))
+        cur_total = sum(current_values.get(i, 0.0) for i in selected) or 1.0
+        rrows = []
+        for i in selected:
+            cur_v = current_values.get(i, 0.0)
+            rrows.append({"Fund": ticker_by_isin.get(i, i),
+                          "Current €": cur_v, "Current %": cur_v / cur_total,
+                          "Target %": tgt[i], "Buy next": buys.get(i, 0.0)})
+        rdf = pd.DataFrame(rrows)
+        render_table(rdf, hide_index=True,
+                     fmt={"Current €": "{:,.0f}", "Current %": "{:.1%}",
+                          "Target %": "{:.1%}", "Buy next": "{:,.0f}"})
+        unknown = [s for s in parsed if s not in ticker_to_isin]
+        if unknown:
+            st.caption("Ignored unrecognised tickers: " + ", ".join(unknown))
+
 
 # --------------------------------------------------------------------------- router
 PAGES = {"Recommended": render_recommended, "Compare": render_compare,

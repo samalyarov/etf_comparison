@@ -17,8 +17,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import (bonds, costs, data, fx, metrics, portfolio, profiles, projection, sentiment,
-                 settings, strategy, tax, theme)
+from etf import (bonds, costs, data, factors, fx, metrics, portfolio, profiles, projection,
+                 sentiment, settings, strategy, tax, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -56,6 +56,12 @@ def get_macro() -> pd.DataFrame:
     if df.empty:
         return df
     return df.pivot(index="date", columns="series", values="value").sort_index()
+
+
+@st.cache_data(ttl=300)
+def get_factor_returns() -> pd.DataFrame:
+    """European Fama/French + momentum monthly factor returns (decimals), or empty."""
+    return data.load_factor_returns("Europe", "monthly")
 
 
 @st.cache_data(ttl=300)
@@ -1249,7 +1255,217 @@ def render_portfolio():
         if unknown:
             st.caption("Ignored unrecognised tickers: " + ", ".join(unknown))
 
+    render_factor_model()
     render_bond_income(selected)
+
+
+def _factor_sleeves() -> list[tuple[str, str]]:
+    """Factor-ETF sleeves in the universe as ``(isin, factor_label)``, one per factor.
+
+    A sleeve is a Factor/Smart-Beta fund whose profile tilt (or name) maps to a canonical
+    factor (value / momentum / quality / size / min-volatility / multifactor). Only the first
+    fund found per factor is offered, so the picker is one clean sleeve per factor.
+    """
+    # Collect every candidate per factor, then keep the most coherent one — preferring the
+    # broad developed-markets / World factor family over a regional/small-cap namesake so the
+    # sleeves form a comparable set (CLAUDE.md: MSCI World factor UCITS ETFs).
+    candidates: dict[str, list[str]] = {}
+    for i in etfs["isin"]:
+        if not str(cat_by_isin.get(i, "")).startswith("Factor"):
+            continue
+        prof = profiles.get_profile(i)
+        tilt = prof.factor_tilt if prof else []
+        label = factors.sleeve_factor_label(tilt, name_by_isin.get(i, ""))
+        if label:
+            candidates.setdefault(label, []).append(i)
+
+    def _prefer(isin: str) -> int:
+        prof = profiles.get_profile(isin)
+        tilt = [str(t).lower() for t in (prof.factor_tilt if prof else [])]
+        return 0 if any(t in ("developed-markets", "world", "global") for t in tilt) else 1
+
+    seen = {f: sorted(isins, key=_prefer)[0] for f, isins in candidates.items()}
+    # Stable, intuitive ordering of the classic factor sleeves.
+    order = ["Value", "Momentum", "Quality", "Size", "Min Volatility", "Multifactor"]
+    ordered = [(seen[f], f) for f in order if f in seen]
+    ordered += [(i, f) for f, i in seen.items() if f not in order]
+    return ordered
+
+
+def render_factor_model():
+    """Factor-model section: factor-ETF blend + per-factor contribution, regression loadings,
+    and a best/base/worst + market-crash scenario fan for a purchasing strategy."""
+    st.markdown('<p class="section-label">Factor model · sleeves, loadings & strategy '
+                'scenarios</p>', unsafe_allow_html=True)
+
+    sleeves = _factor_sleeves()
+    if len(sleeves) < 2:
+        st.caption("Not enough factor ETFs (value / momentum / quality / size / min-vol) in "
+                   "the universe to build a factor blend yet.")
+        return
+    label_of = {i: f for i, f in sleeves}
+    sleeve_labels = {f"{f} · {ticker_by_isin.get(i, i)}": i for i, f in sleeves}
+    st.caption("Allocate a purchasing strategy across dedicated MSCI World factor ETFs, "
+               "backtest the blend with per-factor contribution, and see the built "
+               "portfolio's regression factor loadings.")
+
+    picks = st.multiselect("Factor sleeves", list(sleeve_labels.keys()),
+                           default=list(sleeve_labels.keys()), key="fm_sleeves")
+    sel = [sleeve_labels[p] for p in picks]
+    if len(sel) < 1:
+        st.info("Pick at least one factor sleeve.")
+        return
+
+    # Per-sleeve € purchase amounts (recurring plan) → normalised blend weights.
+    st.markdown('<p class="section-label">Monthly purchase per sleeve (€)</p>',
+                unsafe_allow_html=True)
+    wcols = st.columns(min(len(sel), 6))
+    amounts: dict[str, float] = {}
+    for idx, i in enumerate(sel):
+        col = wcols[idx % len(wcols)]
+        amounts[i] = col.number_input(f"{label_of.get(i, '')} · {ticker_by_isin.get(i, i)}",
+                                      min_value=0.0, value=100.0, step=25.0, key=f"fm_amt_{i}")
+    tot_amt = sum(amounts.values()) or 1.0
+    weights = {i: a / tot_amt for i, a in amounts.items()}
+
+    p1, p2, p3, p4 = st.columns(4)
+    lump = p1.number_input("Lump sum today (€)", min_value=0, value=10000, step=1000,
+                           key="fm_lump")
+    monthly = p2.number_input("Total monthly (€)", min_value=0, value=int(tot_amt), step=50,
+                              key="fm_monthly",
+                              help="Recurring contribution split across the sleeves by the "
+                                   "amounts above.")
+    horizon = p3.slider("Horizon (years)", 1, 40, 15, key="fm_horizon")
+    rebal = p4.selectbox("Rebalance", list(portfolio.REBALANCE_FREQ.keys()), index=1,
+                         key="fm_rebal")
+    rebal_freq = portfolio.REBALANCE_FREQ[rebal]
+
+    mat = pd.DataFrame({i: px(i) for i in sel})
+    mat = mat.dropna(how="all", axis=1)
+    if mat.shape[1] < 1:
+        st.warning("No price history for the selected sleeves.")
+        return
+    blend = portfolio.blend_index(mat, weights, rebalance=rebal_freq)
+    if blend.empty:
+        st.warning("Sleeves don't share enough common history to blend.")
+        return
+
+    # --- (A) Per-factor contribution + growth of 100 ---
+    st.markdown('<p class="section-label">Realised blend · per-factor contribution</p>',
+                unsafe_allow_html=True)
+    contrib = factors.sleeve_contributions(mat, weights, initial=100.0)
+    a, b = st.columns([3, 2])
+    with a:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=blend.index, y=blend.values, name="Factor blend",
+                                 line=dict(color=T.series[0], width=2.5)))
+        for idx, i in enumerate(sel):
+            comp = metrics.normalize_to_100(mat[i].reindex(blend.index).dropna())
+            if not comp.empty:
+                fig.add_trace(go.Scatter(x=comp.index, y=comp.values,
+                                         name=label_of.get(i, ticker_by_isin.get(i, i)),
+                                         line=dict(color=T.color(idx + 2), width=1)))
+        sf(fig, height=320)
+        fig.update_yaxes(title="Indexed to 100")
+        st.plotly_chart(fig, width="stretch")
+    with b:
+        if not contrib.empty:
+            crows = contrib.reset_index().rename(columns={"index": "isin"})
+            crows["Sleeve"] = crows["isin"].map(lambda i: label_of.get(i, ticker_by_isin.get(i, i)))
+            show = crows[["Sleeve", "weight", "total_return", "contribution",
+                          "contribution_share"]]
+            render_table(show, hide_index=True,
+                         fmt={"weight": "{:.0%}", "total_return": "{:.1%}",
+                              "contribution": "{:,.1f}", "contribution_share": "{:.0%}"})
+            st.caption("Contribution = each sleeve's additive share of the blend's growth of "
+                       "100 (buy-and-hold basis; sums to the total gain).")
+
+    # --- (B) Regression factor loadings ---
+    st.markdown('<p class="section-label">Factor loadings · regression on Fama/French-Carhart'
+                '</p>', unsafe_allow_html=True)
+    fr = get_factor_returns()
+    if fr.empty:
+        st.caption("Factor return series not loaded. Run `python -m etf.ingest --factors-ken` "
+                   "to fetch the Ken French European factors, then reload.")
+    else:
+        try:
+            reg = factors.factor_exposures(factors.to_monthly_returns(blend), fr)
+        except factors.InsufficientData as exc:
+            st.caption(f"Not enough overlapping history for a factor regression: {exc}")
+            reg = None
+        if reg is not None:
+            g1, g2 = st.columns([3, 2])
+            with g1:
+                order = [f for f in factors.CARHART_FACTORS if f in reg.betas]
+                bar = go.Figure()
+                bar.add_trace(go.Bar(
+                    x=order, y=[reg.betas[f] for f in order],
+                    marker_color=[T.series[0] if reg.betas[f] >= 0 else T.color(3)
+                                  for f in order],
+                    text=[f"{reg.betas[f]:+.2f}" for f in order], textposition="outside"))
+                sf(bar, height=320)
+                bar.update_yaxes(title="Beta (loading)")
+                bar.update_layout(showlegend=False)
+                st.plotly_chart(bar, width="stretch")
+            with g2:
+                k = st.columns(2)
+                k[0].metric("R²", f"{reg.r_squared:.0%}")
+                k[1].metric("Alpha (annual)", pct(reg.alpha_annual),
+                            help="Return unexplained by the factors (annualised intercept). "
+                                 "Small/insignificant alpha is normal and expected.")
+                st.caption(f"{reg.n_obs} monthly obs · developed-Europe factors "
+                           "(USD-denominated, so loadings read as relative *tilts*, not "
+                           "currency-exact).")
+                tilts = reg.dominant_tilts(threshold=0.1)
+                if tilts:
+                    read = "; ".join(
+                        f"{'+' if b > 0 else '−'}{abs(b):.2f} "
+                        f"{factors.FACTOR_MEANING.get(f, f).split(' — ')[0]}"
+                        for f, b in tilts)
+                    st.markdown(f"**Tilt read:** market beta "
+                                f"{reg.betas.get('Mkt-RF', float('nan')):.2f}; {read}.")
+                else:
+                    st.markdown("**Tilt read:** close to the market with no strong secondary "
+                                "factor tilt.")
+
+    # --- (c) Purchasing-strategy scenarios: best/base/worst + market crash ---
+    st.markdown('<p class="section-label">Purchasing-strategy scenarios · best / base / worst '
+                '+ market crash</p>', unsafe_allow_html=True)
+    ps = factors.plan_scenarios(blend, start_value=float(lump), monthly=float(monthly),
+                                years=int(horizon), method="bootstrap", n_sims=1500)
+    k = st.columns(4)
+    k[0].metric("Invested", money(ps.invested))
+    k[1].metric("Worst (p5)", money(ps.worst))
+    k[2].metric("Base (p50)", money(ps.base))
+    k[3].metric("Best (p95)", money(ps.best))
+
+    fan = ps.fan
+    x = ps.dates
+    fanfig = go.Figure()
+    fanfig.add_trace(go.Scatter(x=x, y=fan["p95"], name="Best (p95)", line=dict(width=0),
+                                showlegend=False))
+    fanfig.add_trace(go.Scatter(x=x, y=fan["p5"], name="p5–p95", fill="tonexty",
+                                fillcolor="rgba(42,120,214,0.15)",
+                                line=dict(width=0)))
+    fanfig.add_trace(go.Scatter(x=x, y=fan["p50"], name="Base (p50)",
+                                line=dict(color=T.series[0], width=2.2)))
+    fanfig.add_trace(go.Scatter(x=x, y=fan["invested"], name="Invested",
+                                line=dict(color=T.ink2, width=1.2, dash="dot")))
+    if ps.crash is not None:
+        fanfig.add_trace(go.Scatter(x=x, y=ps.crash.timeline.values, name="Market crash replay",
+                                    line=dict(color=T.color(3), width=1.8, dash="dash")))
+    sf(fanfig, height=360)
+    fanfig.update_yaxes(title="Net worth (€)")
+    st.plotly_chart(fanfig, width="stretch")
+    if ps.crash is not None:
+        st.caption(f"Crash replay: the blend's worst historical drawdown "
+                   f"({ps.crash.window_drawdown:.0%} over {ps.crash.window_months} months) "
+                   f"applied from today, then trend growth — trough €{ps.crash.trough_value:,.0f} "
+                   f"around month {ps.crash.trough_month}. Scenario arithmetic on real history, "
+                   "not a forecast; no VaR here (see the risk engine).")
+    else:
+        st.caption("Scenario arithmetic on real history, not a forecast. (No historical "
+                   "drawdown found in this blend's window to replay as a crash.)")
 
 
 def render_bond_income(selected: list[str]):

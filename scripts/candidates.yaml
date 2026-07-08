@@ -757,6 +757,36 @@ candidates:
   tickers:
   - IBCI.DE
   - IBCI.L
+- isin: IE00B3VTMJ91
+  name: iShares Euro Govt Bond 1-3yr (Acc)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: ACC
+  ter: 0.0015
+  tickers:
+  - SXRN.DE
+  - CBE3.L
+- isin: IE00B1FZS913
+  name: iShares Euro Govt Bond 15-30yr (Dist)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  acc_dist: DIST
+  ter: 0.0015
+  tickers:
+  - IBGL.AS
+  - IBGL.L
+  - IBCL.DE
+- isin: DE0006289465
+  name: iShares eb.rexx Government Germany (Dist)
+  category: Bonds
+  asset_class: bond
+  region: germany
+  acc_dist: DIST
+  ter: 0.0016
+  tickers:
+  - EXHA.DE
 - isin: IE00B4ND3602
   name: iShares Physical Gold ETC
   category: Gold & Commodities

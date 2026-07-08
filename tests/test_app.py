@@ -48,5 +48,28 @@ def test_theme_toggle(theme):
     assert not at.exception, f"Compare ({theme}) raised: {at.exception}"
 
 
+def test_portfolio_bond_income_toggles():
+    """The Bonds/income section survives flipping reinvest-vs-cashout and the tax regime."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    at.radio(key="bond_view").set_value("Cashed out").run()
+    assert not at.exception, at.exception
+    at.radio(key="bond_regime").set_value("Actual return (2028)").run()
+    assert not at.exception, at.exception
+    # Both currency modes exercise the FX-conversion path on close + distributions.
+    at.radio[0].set_value("EUR").run()
+    assert not at.exception, at.exception
+
+
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+@pytest.mark.parametrize("currency", ["Native", "EUR"])
+def test_portfolio_bond_section_both_themes_and_currencies(theme, currency):
+    """The bond-income charts/tables render in both themes and both currency modes."""
+    at = _run("Portfolio", theme=theme, currency=currency)
+    assert not at.exception, f"Portfolio bonds ({theme}/{currency}) raised: {at.exception}"
+    at.radio(key="bond_view").set_value("Cashed out").run()
+    assert not at.exception, f"Portfolio cash-out ({theme}/{currency}) raised: {at.exception}"
+
+
 def teardown_module(module):
     os.environ.pop("ETF_FORCE_PAGE", None)

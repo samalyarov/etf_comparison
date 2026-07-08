@@ -17,8 +17,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import (costs, data, fx, metrics, portfolio, projection, sentiment, settings,
-                 strategy, theme)
+from etf import (bonds, costs, data, fx, metrics, portfolio, projection, sentiment, settings,
+                 strategy, tax, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -65,6 +65,21 @@ def get_prices_cur(isin: str, to_eur: bool, currency: str | None) -> pd.Series:
     if not to_eur or s.empty:
         return s
     return fx.convert_to_base(s, currency, get_fx()).dropna()
+
+
+@st.cache_data(ttl=300)
+def get_close(isin: str) -> pd.Series:
+    """Raw close (price-return) series — used for the bond cash-out scenario."""
+    df = data.load_prices(isin)
+    if df.empty or "close" not in df.columns:
+        return pd.Series(dtype=float)
+    return df["close"].dropna()
+
+
+@st.cache_data(ttl=300)
+def get_distributions(isin: str) -> pd.DataFrame:
+    """Distribution (coupon) history indexed by ex-date, with an ``amount`` column."""
+    return data.load_distributions(isin)
 
 
 def pct(x) -> str:
@@ -221,12 +236,33 @@ name_by_isin = dict(zip(etfs["isin"], etfs["name"]))
 ticker_by_isin = dict(zip(etfs["isin"], etfs["ticker"]))
 ter_by_isin = dict(zip(etfs["isin"], etfs["ter"]))
 cat_by_isin = dict(zip(etfs["isin"], etfs["category"]))
+assetclass_by_isin = dict(zip(etfs["isin"], etfs.get("asset_class", pd.Series(dtype=object))))
+accdist_by_isin = dict(zip(etfs["isin"], etfs.get("acc_dist", pd.Series(dtype=object))))
 currency_by_isin = dict(zip(etfs["isin"], etfs.get("currency", pd.Series(dtype=object))))
 
 
 def px(isin: str) -> pd.Series:
     """Adjusted-close series in the currently selected currency (native or EUR)."""
     return get_prices_cur(isin, EUR_MODE, currency_by_isin.get(isin))
+
+
+def close_cur(isin: str) -> pd.Series:
+    """Raw close (price-return) series in the selected currency (native or EUR)."""
+    s = get_close(isin)
+    if EUR_MODE and not s.empty:
+        return fx.convert_to_base(s, currency_by_isin.get(isin), get_fx()).dropna()
+    return s
+
+
+def dists_cur(isin: str) -> pd.DataFrame:
+    """Distribution history with amounts in the selected currency (native or EUR)."""
+    d = get_distributions(isin)
+    if d.empty or "amount" not in d.columns:
+        return pd.DataFrame(columns=["amount"])
+    amt = d["amount"]
+    if EUR_MODE:
+        amt = fx.convert_to_base(amt, currency_by_isin.get(isin), get_fx())
+    return pd.DataFrame({"amount": amt})
 label_by_isin = {r["isin"]: f"{r['name']}  ·  {r['ticker']}" for _, r in etfs.iterrows()}
 isin_by_label = {v: k for k, v in label_by_isin.items()}
 
@@ -1124,6 +1160,121 @@ def render_portfolio():
         unknown = [s for s in parsed if s not in ticker_to_isin]
         if unknown:
             st.caption("Ignored unrecognised tickers: " + ", ".join(unknown))
+
+    render_bond_income(selected)
+
+
+def render_bond_income(selected: list[str]):
+    """Bonds section: coupon income, reinvest-vs-cash-out paths, and Dutch box-3 tax."""
+    st.markdown('<p class="section-label">Bonds · income, reinvest vs cash out, Dutch tax</p>',
+                unsafe_allow_html=True)
+    bond_isins = [i for i in etfs["isin"] if str(assetclass_by_isin.get(i)) == "bond"]
+    if not bond_isins:
+        st.caption("No bond funds in the universe yet.")
+        return
+    # Prefer bonds already in the blend above; otherwise offer the whole bond sleeve.
+    sel_bonds = [i for i in selected if i in bond_isins]
+    pool = sel_bonds or bond_isins
+    blabels = [label_by_isin[i] for i in pool if i in label_by_isin]
+    bchoice = st.selectbox("Bond fund", blabels, key="bond_fund",
+                           help="Distributing funds show a real coupon stream; accumulating "
+                                "funds reinvest internally (cash-out ≈ price path).")
+    bisin = isin_by_label.get(bchoice)
+    if not bisin:
+        return
+
+    c1, c2, c3 = st.columns(3)
+    initial = c1.number_input("Amount invested (€)", value=10000, step=1000, min_value=100,
+                              key="bond_initial")
+    view = c2.radio("Distributions", ["Reinvested", "Cashed out"], horizontal=True,
+                    key="bond_view",
+                    help="Reinvested = accumulating-equivalent total return. Cashed out = "
+                         "hold units, take coupons as cash (a separate uninvested pile).")
+    regime = c3.radio("Dutch tax", ["Box 3 (2026)", "Actual return (2028)"], horizontal=True,
+                      key="bond_regime")
+    partners = st.checkbox("Fiscal partners (double the tax-free allowance)", value=False)
+
+    price = close_cur(bisin)
+    adj = px(bisin)
+    dists = dists_cur(bisin)
+    if price.empty:
+        st.caption("No price history for this fund.")
+        return
+    sc = bonds.income_scenarios(price, dists, adj_close=adj, initial=float(initial))
+    if sc.reinvested.empty:
+        st.caption("Not enough price history to model this fund.")
+        return
+
+    yrs = max((sc.reinvested.index[-1] - sc.reinvested.index[0]).days / 365.25, 1e-9)
+    k = st.columns(4)
+    k[0].metric("Distribution yield (TTM)", pct(sc.dist_yield_ttm))
+    k[1].metric("Cumulative income (cash-out)", money(sc.total_income))
+    k[2].metric("Final · reinvested", money(sc.final_reinvested))
+    k[3].metric("Final · cashed out", money(sc.final_cashout_total),
+                help="Holding value on the price path + accumulated cash coupons.")
+    st.caption(f"{sc.reinvested.index[0].date()} → {sc.reinvested.index[-1].date()} "
+               f"({yrs:.1f}y) · {'EUR' if EUR_MODE else 'native currency'} · "
+               f"{accdist_by_isin.get(bisin, '')} · you selected: {view.lower()}.")
+
+    # --- Net worth paths (both scenarios) + cumulative income ---
+    a, b = st.columns(2)
+    with a:
+        st.markdown('<p class="section-label">Net worth · reinvested vs cashed out</p>',
+                    unsafe_allow_html=True)
+        f = go.Figure()
+        f.add_trace(go.Scatter(x=sc.reinvested.index, y=sc.reinvested.values, name="Reinvested",
+                               line=dict(color=T.series[0],
+                                         width=2.6 if view == "Reinvested" else 1.2)))
+        f.add_trace(go.Scatter(x=sc.cashout_total.index, y=sc.cashout_total.values,
+                               name="Cashed out (value + cash)",
+                               line=dict(color=T.color(2),
+                                         width=2.6 if view == "Cashed out" else 1.2)))
+        f.add_trace(go.Scatter(x=sc.cashout_value.index, y=sc.cashout_value.values,
+                               name="Cashed out · holding only",
+                               line=dict(color=T.ink2, width=1, dash="dot")))
+        sf(f, height=320)
+        f.update_yaxes(title="Net worth (€)")
+        st.plotly_chart(f, width="stretch")
+    with b:
+        st.markdown('<p class="section-label">Cumulative cash income (if cashed out)</p>',
+                    unsafe_allow_html=True)
+        g = go.Figure()
+        g.add_trace(go.Scatter(x=sc.cashout_income.index, y=sc.cashout_income.values,
+                               name="Cumulative income", fill="tozeroy",
+                               line=dict(color=T.series[0], width=1.8)))
+        sf(g, height=320)
+        g.update_yaxes(title="Cash received (€)")
+        st.plotly_chart(g, width="stretch")
+
+    # --- After-tax under the selected Dutch regime (both scenarios shown) ---
+    st.markdown('<p class="section-label">After-tax · Dutch box 3</p>', unsafe_allow_html=True)
+    rows = []
+    for scen, value, gain in (
+        ("Reinvested", sc.final_reinvested, sc.final_reinvested - sc.initial),
+        ("Cashed out", sc.final_cashout_total, sc.final_cashout_total - sc.initial),
+    ):
+        if regime.startswith("Box 3"):
+            annual_tax = tax.box3_tax(value, partners=partners).tax
+        else:
+            annual_tax = tax.actual_return_tax(gain / yrs, partners=partners).tax
+        rows.append({"Scenario": scen, "Net worth": value, "Annual tax": annual_tax,
+                     "After 1y tax": value - annual_tax,
+                     "Tax / net worth": (annual_tax / value) if value else 0.0})
+    render_table(pd.DataFrame(rows), hide_index=True,
+                 fmt={"Net worth": "{:,.0f}", "Annual tax": "{:,.0f}",
+                      "After 1y tax": "{:,.0f}", "Tax / net worth": "{:.2%}"})
+    if regime.startswith("Box 3"):
+        st.caption(f"Box 3 (2026): a **wealth** tax — {tax.FORFAIT_INVESTMENTS_2026:.2%} deemed "
+                   f"return on assets above €{tax.HEFFINGSVRIJ_VERMOGEN_2026:,.0f}"
+                   f"{' × 2 (partners)' if partners else ''}, taxed at {tax.BOX3_RATE_2026:.0%} "
+                   f"(≈{tax.effective_wealth_tax_rate():.2%} of taxable assets/yr). Identical for "
+                   "both scenarios at equal net worth — coupons don't change the bill.")
+    else:
+        st.caption(f"Actual-return regime (intended 2028, postponed from 2027): taxes real "
+                   f"return — coupons + value change — above €{tax.HEFFINGVRIJ_RESULTAAT:,.0f}"
+                   f"{' × 2' if partners else ''}/yr at {tax.ACTUAL_RETURN_RATE:.0%}, here on the "
+                   "average annual return over the window (simplified; the law applies the "
+                   "allowance yearly). Reinvesting compounds, so it is taxed a little more.")
 
 
 # --------------------------------------------------------------------------- router

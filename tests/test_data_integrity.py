@@ -115,6 +115,65 @@ def test_fx_and_macro_caches_populated():
 
 
 @db_test
+def test_distributing_bond_funds_have_a_coupon_stream():
+    # Bond-income modelling relies on the distributions table: every *distributing* bond ETF
+    # with price history should carry at least one recorded coupon (else the cash-out
+    # scenario is silently empty). Accumulating funds legitimately have none.
+    from etf import bonds, data
+    etfs = data.list_etfs()
+    b = etfs[(etfs["asset_class"] == "bond") & (etfs["acc_dist"] == "DIST")]
+    missing = []
+    for isin, ticker in zip(b["isin"], b["ticker"]):
+        if data.load_prices(isin).empty:
+            continue
+        d = data.load_distributions(isin)
+        # A distributing bond fund with a multi-year history but no coupons is suspect.
+        if d.empty or "amount" not in d.columns or (d["amount"] > 0).sum() == 0:
+            missing.append(ticker)
+        else:
+            # Income modelling must produce a non-negative cash stream from real data.
+            sc = bonds.income_scenarios(data.load_prices(isin)["close"].dropna(), d,
+                                        initial=10_000.0)
+            assert sc.total_income >= 0.0, ticker
+    # IBCI (inflation-linked) is a known Yahoo gap — coupons not reported; tolerate only it.
+    assert set(missing) <= {"IBCI.DE", "IBCI.L"}, f"distributing bonds with no coupons: {missing}"
+
+
+@db_test
+def test_bond_reinvested_path_reconciles_with_adj_close():
+    # Total-return reconciliation (roadmap: "distribution / total-return reconciliation").
+    # The reinvested path derived from the stored `adj_close` must match the path
+    # reconstructed independently from `close` + the `distributions` table. A wide gap means
+    # the adjusted series is inconsistent with the raw price + coupons — an adjustment/ingest
+    # artifact worth catching before it reaches the bond-income view.
+    #
+    # NB: we deliberately do NOT assert "reinvesting beats cashing out" here — for a bond
+    # whose price fell after coupons were paid (e.g. long-duration govvies whose coupons
+    # were reinvested near the 2020-21 price peak, then crushed by the 2022 rate shock),
+    # banking the coupons as cash legitimately wins. That conditional ordering is covered by
+    # the synthetic monotonic-price unit test in tests/test_bonds.py.
+    from etf import bonds, data
+    etfs = data.list_etfs()
+    b = etfs[(etfs["asset_class"] == "bond") & (etfs["acc_dist"] == "DIST")]
+    checked = 0
+    for isin, ticker in zip(b["isin"], b["ticker"]):
+        px = data.load_prices(isin)
+        if px.empty:
+            continue
+        dists = data.load_distributions(isin)
+        close = px["close"].dropna()
+        sc = bonds.income_scenarios(close, dists, adj_close=px["adj_close"].dropna(),
+                                    initial=10_000.0)
+        recon = bonds.reinvest_from_price(close, dists, initial=10_000.0)
+        if sc.reinvested.empty or recon.empty:
+            continue
+        assert sc.final_reinvested == pytest.approx(float(recon.iloc[-1]), rel=0.01), (
+            f"{ticker}: adj_close total return disagrees with close+coupon reconstruction")
+        checked += 1
+    assert checked > 0, "no distributing bond with price history was reconciled"
+
+
+@db_test
 def test_prices_are_physically_plausible():
     from etf import data
     etfs = data.list_etfs()

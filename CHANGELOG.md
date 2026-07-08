@@ -9,6 +9,41 @@ version heading on release. This is the authoritative human-readable history of 
 
 ## [Unreleased]
 
+### Added
+- **Bond income modelling** (`etf/bonds.py`, pure): turns a stored `close` series + the
+  `distributions` table into two side-by-side scenarios — **(a) distributions reinvested**
+  (accumulating-equivalent total-return path, cross-checked against the stored `adj_close`)
+  and **(b) distributions cashed out** (units held on the price-return path plus a separate
+  accumulated cash-income pile). Also trailing-12-month distribution yield. Surfaced in a new
+  **Bonds · income, reinvest vs cash out, Dutch tax** section on the Portfolio page with a
+  reinvest/cash-out toggle, net-worth + cumulative-income charts, and metrics — currency- and
+  theme-aware.
+- **Dutch box-3 tax** (`etf/tax.py`, pure): both regimes as configurable, sourced functions.
+  *Box 3 (2026)* — the current **fictitious-return wealth tax**: a forfaitair rendement on
+  assets above the heffingsvrij vermogen, taxed at the box-3 rate (independent of coupons
+  actually received). *Werkelijk rendement* — the postponed **actual-return** reform: tax on
+  real return (coupons + value change) above a small tax-free result. Parameters verified
+  July 2026: heffingsvrij vermogen **€59,357/person**, investment forfait **6.00%** (definitive),
+  savings 1.28% / debt 2.70% (provisional), rate **36%**; actual-return tax-free result
+  **€1,800/person** at **36%**, intended start **2028** (postponed from 2027; adopted by the
+  Tweede Kamer 2026-02-12, pending Eerste Kamer). Simplifying assumption for the actual-return
+  view: it taxes the window's *average annual* return; the law applies the allowance yearly.
+- **Universe**: added three Eurozone/German government bond ETFs to broaden duration and
+  add Dutch/Eurozone govvie exposure — iShares Euro Govt Bond 1-3yr Acc (`CBE3.L`), iShares
+  Euro Govt Bond 15-30yr Dist (`IBGL.AS`), iShares eb.rexx Government Germany Dist (`EXHA.DE`).
+  All ingested with full price history; the two distributing funds carry real coupon streams.
+- **Tests**: `tests/test_bonds.py` (yield, cash-out income, reinvest/cash-out equivalence and
+  ordering), `tests/test_tax.py` (hand-computed box-3 and actual-return arithmetic), a
+  total-return reconciliation data-integrity check (adj_close vs close+coupons for every
+  distributing bond), a distributing-bond coupon-stream invariant, and Portfolio bond-section
+  UI smoke coverage in both themes and both currency modes.
+
+### Notes
+- Bond finding surfaced by the reconciliation work: for long-duration govvies (`IBGL.AS`,
+  `EXHA.DE`) whose coupons were reinvested near the 2020-21 price peak and then crushed by the
+  2022 rate shock, **cashing out beat reinvesting** — reinvesting is not universally superior,
+  so the ordering is only asserted on synthetic monotonic-rising prices, not real data.
+
 ## [1.0.0] — 2026-07-04
 
 First production release. The tool graduates from a personal price/metrics viewer to a

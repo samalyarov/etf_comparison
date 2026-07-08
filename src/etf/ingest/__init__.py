@@ -220,6 +220,40 @@ def fetch_macro(conn) -> dict:
     return counts
 
 
+def backfill_factors_ken(frequency: str = "monthly") -> dict:
+    """Fetch European Fama/French factors + momentum and store them in ``factor_returns``.
+
+    Network path only (CLAUDE.md: only the deliberate fetch touches the network). Downloads
+    the Ken French European FF5 and momentum CSV zips, parses them to decimals, and upserts
+    the merged monthly matrix. Non-blocking by design: if the download fails or is
+    rate-limited it reports the fetch as *pending* and returns ``{"ok": False, ...}`` rather
+    than raising, so a scheduled run doesn't abort the rest of the pipeline.
+    """
+    from . import kenfrench
+
+    db.init_db()
+    try:
+        matrix = kenfrench.fetch_europe_factors(frequency=frequency)
+    except Exception as exc:  # noqa: BLE001 - network/parse failure must not block
+        print(f"  ! Ken French factor fetch failed ({exc}). "
+              f"Factor regression will use the committed fixture until this succeeds.")
+        return {"ok": False, "error": str(exc), "rows": 0}
+    if matrix.empty:
+        print("  ! Ken French factor fetch returned no rows — pending.")
+        return {"ok": False, "rows": 0}
+    with db.connect() as conn:
+        rows = db.upsert_factor_returns(conn, "Europe", frequency, matrix,
+                                        source="ken_french")
+        db.log_ingest(conn, "FACTORS", "ken_french", "factors",
+                      from_date=matrix.index.min().date(),
+                      to_date=matrix.index.max().date(), rows=rows, status="ok",
+                      message=f"Europe {frequency} FF5+WML: {list(matrix.columns)}")
+    print(f"  ↳ Ken French Europe {frequency} factors: {rows} rows "
+          f"({matrix.index.min().date()} → {matrix.index.max().date()}), "
+          f"columns {list(matrix.columns)}")
+    return {"ok": True, "rows": rows, "columns": list(matrix.columns)}
+
+
 def backfill_facts(only: str | None = None) -> dict:
     """Backfill fund fundamentals (AUM, inception) + macro series — network, no price fetch."""
     db.init_db()
@@ -374,6 +408,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Backfill fund fundamentals (AUM/inception) + macro series (network).",
     )
     parser.add_argument(
+        "--factors-ken", action="store_true",
+        help="Fetch Ken French European FF5 + momentum factors into factor_returns (network).",
+    )
+    parser.add_argument(
         "--if-stale", type=int, metavar="DAYS", default=None,
         help="Only fetch if stored data is older than DAYS (for a scheduled weekly job).",
     )
@@ -391,6 +429,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.facts:
         backfill_facts(only=args.only)
+        return 0
+    if args.factors_ken:
+        backfill_factors_ken()
         return 0
     order = [s.strip() for s in args.sources.split(",")] if args.sources else None
     run(only=args.only, sources_order=order, incremental=args.incremental)

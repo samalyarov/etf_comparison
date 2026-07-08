@@ -10,6 +10,47 @@ version heading on release. This is the authoritative human-readable history of 
 ## [Unreleased]
 
 ### Added
+- **Factor-model portfolio builder** (`etf/factors.py`, pure): two complementary views plus a
+  forward scenario modeller for a factor-ETF blend.
+  - *(B) Regression-estimated exposures* — `factor_exposures(portfolio_returns, factor_returns)`
+    OLS-regresses a built portfolio's **excess** returns on the Fama/French-Carhart factors
+    and returns factor **betas** (loadings), annualised **alpha**, R²/adjusted-R², and
+    per-coefficient standard errors and t-statistics. Follows the standard convention: the
+    market factor is an excess return so `RF` is subtracted from the portfolio too; monthly
+    frequency; plain OLS with classical SEs (numpy only — no statsmodels/scipy). Aligns dates,
+    drops NaN, and raises `InsufficientData` on too little overlap.
+  - *(A) Factor-ETF building blocks* — `sleeve_contributions(prices, weights)` decomposes a
+    blend's growth-of-100 into each factor sleeve's **additive** contribution (buy-and-hold
+    basis; sums exactly to the total gain), reusing `portfolio.blend_index` alignment.
+  - *Purchasing-strategy scenarios* — `plan_scenarios(...)` projects a lump-sum + recurring
+    plan into a **best / base / worst** percentile fan (reusing `projection.py`'s
+    bootstrap/Monte-Carlo) and an explicit **market-crash** replay that applies the blend's own
+    worst historical drawdown-and-recovery path (`worst_crash_window`, real data — nothing
+    fabricated) to the plan. Scope: the forward plan-level fan only; VaR/formal stress replays
+    are a separate later task, deliberately not built here.
+- **Factor return data** (Ken French Data Library — European factors): new ingest adapter
+  `etf/ingest/kenfrench.py` fetches the developed-**Europe** Fama/French 5 factors
+  (`Mkt-RF, SMB, HML, RMW, CMA`, plus `RF`) and Carhart momentum (`WML`) from the freely
+  published CSV zips, parses percent→decimal with `-99.99`→NaN, and stores the **monthly**
+  matrix in a new additive `factor_returns` table (`db.upsert_factor_returns`,
+  `data.load_factor_returns`). New CLI flag `python -m etf.ingest --factors-ken`; non-blocking
+  (reports the fetch as pending and falls back to a committed fixture if the download
+  rate-limits). Monthly frequency is the documented choice (academic standard for factor
+  regressions; matches the projection's monthly basis). Note: the European factors are
+  USD-denominated, so loadings read as relative *tilts* rather than currency-exact betas.
+- **Portfolio page — "Factor model" section**: pick MSCI World factor sleeves
+  (value / momentum / quality / size / min-volatility / multifactor — already in the universe),
+  set a per-sleeve purchasing strategy, and see (a) the realised blend with per-factor
+  contribution, (b) the built portfolio's regression factor loadings (bar chart + R²/alpha and
+  a plain-English tilt read), and (c) the best/base/worst + market-crash scenario fan — reusing
+  `render_table`, the dataviz palette and `theme`; currency- and theme-aware.
+- Tests: `tests/test_factors.py` (Ken French parsing incl. annual-section boundary and the
+  `-99.99` sentinel, store/load roundtrip, regression recovering KNOWN betas and the
+  excess-return convention, date alignment and insufficient-overlap handling, additive sleeve
+  decomposition, crash-window drawdown/recovery detection, and scenario-fan monotonicity +
+  crash shape); `factor_returns` decimals/no-lookahead invariants in
+  `tests/test_data_integrity.py`; and Portfolio factor-section UI smoke coverage in both themes
+  and both currency modes. Suite 145 → 171.
 - **ETF strategy / exposure profiles** (`etf/profiles.py`, pure; `scripts/etf_profiles.yaml`,
   committed seed): a look-through dataset for the whole universe — every fund maps to the
   index it tracks, and each index carries a researched breakdown of `strategy`,

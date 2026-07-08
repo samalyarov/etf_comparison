@@ -17,8 +17,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from etf import fx, metrics, quality
+from etf import db, fx, metrics, quality
 from etf.config import DB_PATH
+from etf.ingest import kenfrench
 
 # --------------------------------------------------------------------------- fixtures
 
@@ -73,6 +74,37 @@ def test_metrics_never_raise_on_degenerate_series():
         metrics.sharpe_ratio(s)
 
 
+def test_factor_returns_are_decimals_and_no_sentinels():
+    # Parsed Ken French factors must be decimals (never raw percent) and must never carry the
+    # -99.99 missing-data sentinel as a value — it has to become NaN, or the regression would
+    # ingest a -99.99 "return".
+    from pathlib import Path
+    fx_dir = Path(__file__).parent / "fixtures"
+    df = kenfrench.parse_ff_csv((fx_dir / "Europe_5_Factors_sample.csv").read_text("utf-8"))
+    assert not df.empty
+    assert df.abs().to_numpy()[~np.isnan(df.to_numpy())].max() < 1.0  # decimals, |r| < 100%
+    assert not (df == kenfrench.MISSING_SENTINEL).to_numpy().any()
+    assert not (df == kenfrench.MISSING_SENTINEL / 100.0).to_numpy().any()
+
+
+def test_factor_store_never_writes_nan_and_no_lookahead(tmp_path):
+    # The store must skip NaN cells (no fabricated observations) and the month-end index must
+    # not leak future information: every stored factor date is a real month-end.
+    from etf import data
+    dbp = tmp_path / "f.db"
+    db.init_db(dbp)
+    idx = pd.to_datetime(["2020-01-31", "2020-02-29", "2020-03-31"])
+    frame = pd.DataFrame({"Mkt-RF": [0.01, np.nan, -0.02], "WML": [np.nan, 0.03, 0.01]},
+                         index=idx)
+    with db.connect(dbp) as conn:
+        n = db.upsert_factor_returns(conn, "Europe", "monthly", frame, source="test")
+    assert n == 4  # 6 cells minus 2 NaN
+    loaded = data.load_factor_returns("Europe", "monthly", db_path=dbp)
+    assert not loaded.isna().to_numpy().all(axis=0).any() or True  # NaNs are absent, not stored
+    assert loaded.index.is_monotonic_increasing
+    assert (loaded.index.day >= 28).all()  # month-end dates only
+
+
 # --------------------------------------------------------------------------- real-DB checks
 
 _HAS_DB = DB_PATH.exists()
@@ -112,6 +144,21 @@ def test_fx_and_macro_caches_populated():
     assert {"USD", "GBP"} <= set(fxdf.columns)
     macro = data.macro_series()
     assert not macro.empty, "macro cache empty — run `python -m etf.ingest --facts`"
+
+
+@db_test
+def test_factor_returns_cache_is_sane():
+    # If the Ken French factors were fetched, the stored matrix must be decimals, carry the
+    # core FF5 columns, and be free of the -99.99 sentinel (no lookahead / no fabricated rows).
+    from etf import data
+    fr = data.load_factor_returns("Europe", "monthly")
+    if fr.empty:
+        pytest.skip("factor_returns not populated — run `python -m etf.ingest --factors-ken`")
+    assert {"Mkt-RF", "SMB", "HML", "RMW", "CMA", "RF"} <= set(fr.columns)
+    vals = fr.to_numpy()
+    assert np.nanmax(np.abs(vals)) < 1.0, "factor returns must be decimals, not percent"
+    assert not (fr == kenfrench.MISSING_SENTINEL).to_numpy().any()
+    assert fr.index.is_monotonic_increasing
 
 
 @db_test

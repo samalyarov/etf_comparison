@@ -73,6 +73,28 @@ def test_portfolio_bond_section_both_themes_and_currencies(theme, currency):
 
 @pytest.mark.parametrize("theme", ["Light", "Dark"])
 @pytest.mark.parametrize("currency", ["Native", "EUR"])
+def test_portfolio_factor_model_both_themes_and_currencies(theme, currency):
+    """The Factor-model section (sleeves, loadings, scenario fan) renders in both themes
+    and both currency modes."""
+    at = _run("Portfolio", theme=theme, currency=currency)
+    assert not at.exception, f"Portfolio factor model ({theme}/{currency}) raised: {at.exception}"
+
+
+def test_portfolio_factor_model_sleeve_and_horizon_interaction():
+    """Changing the sleeve selection and the horizon re-runs the factor section cleanly."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    ms = at.multiselect(key="fm_sleeves")
+    if ms.value and len(ms.value) > 1:
+        ms.set_value(ms.value[:1]).run()  # drop to a single sleeve
+        assert not at.exception, at.exception
+    sl = at.slider(key="fm_horizon")
+    sl.set_value(30).run()
+    assert not at.exception, at.exception
+
+
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+@pytest.mark.parametrize("currency", ["Native", "EUR"])
 def test_detail_profile_section_both_themes_and_currencies(theme, currency):
     """The Detail-page strategy/exposure look-through renders in both themes/currencies."""
     at = _run("Detail", theme=theme, currency=currency)

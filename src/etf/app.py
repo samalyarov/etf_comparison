@@ -17,8 +17,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import (bonds, costs, data, fx, metrics, portfolio, projection, sentiment, settings,
-                 strategy, tax, theme)
+from etf import (bonds, costs, data, fx, metrics, portfolio, profiles, projection, sentiment,
+                 settings, strategy, tax, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -672,6 +672,68 @@ def render_detail():
         else:
             st.caption("No overlap with the tracked regime windows.")
 
+    # --- Strategy & exposure (look-through profile) ---
+    st.markdown('<p class="section-label">Strategy &amp; exposure · look-through</p>',
+                unsafe_allow_html=True)
+    prof = profiles.get_profile(isin)
+    if prof is None:
+        st.caption("No exposure profile recorded for this fund yet.")
+    else:
+        st.markdown(f"**{prof.index_name}** — {prof.strategy}")
+        pm = st.columns(3)
+        pm[0].metric("Asset class", prof.asset_class.capitalize())
+        pm[1].metric("Replication", str(prof.replication or "—").capitalize())
+        pm[2].metric("Profile data", "Full" if prof.data_complete else "Partial",
+                     help="'Partial' = index/strategy/region known but a full sector/holdings "
+                          "look-through wasn't sourced for this fund. Nothing is estimated.")
+        if prof.factor_tilt:
+            st.caption("Tilts: " + " · ".join(prof.factor_tilt))
+
+        def _exposure_bar(mapping: dict, title: str, colour_idx: int):
+            if not mapping:
+                return
+            items = sorted(mapping.items(), key=lambda kv: kv[1], reverse=True)
+            labels = [k for k, _ in items]
+            vals = [v for _, v in items]
+            st.markdown(f'<p class="section-label">{title}</p>', unsafe_allow_html=True)
+            bfig = go.Figure(go.Bar(x=vals, y=labels, orientation="h",
+                                    marker_color=T.color(colour_idx)))
+            bfig.update_yaxes(autorange="reversed")
+            bfig.update_xaxes(tickformat=".0%")
+            sf(bfig, height=max(180, 28 * len(labels) + 90), showlegend=False, hovermode=False)
+            st.plotly_chart(bfig, width="stretch")
+
+        ex1, ex2 = st.columns(2)
+        with ex1:
+            _exposure_bar(prof.region_weights, "Region", 0)
+            _exposure_bar(prof.credit_quality, "Credit quality", 3)
+        with ex2:
+            _exposure_bar(prof.sector_weights, "Sector (GICS)", 1)
+        if prof.country_weights or prof.top_holdings:
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if prof.country_weights:
+                    st.markdown('<p class="section-label">Top countries</p>',
+                                unsafe_allow_html=True)
+                    cdf = pd.DataFrame(
+                        sorted(prof.country_weights.items(), key=lambda kv: kv[1],
+                               reverse=True), columns=["Country", "Weight"])
+                    render_table(cdf, hide_index=True, max_height=320,
+                                 fmt={"Weight": "{:.1%}"})
+            with cc2:
+                if prof.top_holdings:
+                    st.markdown('<p class="section-label">Top holdings</p>',
+                                unsafe_allow_html=True)
+                    hdf = pd.DataFrame(prof.top_holdings)
+                    if "weight" in hdf.columns:
+                        hdf = hdf.rename(columns={"name": "Holding", "weight": "Weight"})
+                        render_table(hdf[["Holding", "Weight"]], hide_index=True,
+                                     max_height=320, fmt={"Weight": "{:.2%}"})
+        src = f" · source: {prof.source}" if prof.source else ""
+        asof = f" · as of {prof.as_of}" if prof.as_of else ""
+        st.caption(f"Weights are index/fund look-through, fractions of the fund{asof}{src}. "
+                   "Used by the portfolio optimiser for sector/exposure constraints.")
+
     # --- Sentiment (experimental, supplementary) ---
     st.markdown('<p class="section-label">Sentiment · experimental, supplementary</p>',
                 unsafe_allow_html=True)
@@ -900,6 +962,32 @@ def render_data():
                    f"({universe_max.date()}). They may have been delisted or renamed.")
     render_table(cov, hide_index=True, max_height=380,
                  fmt={"days_behind": "{:.0f}"})
+
+    # --- Fund profiles / exposure coverage ---
+    st.markdown('<p class="section-label">Fund profiles / exposure</p>',
+                unsafe_allow_html=True)
+    try:
+        profs = profiles.load_profiles()
+        cov = profiles.coverage_summary()
+        db_isins = list(etfs["isin"])
+        no_prof = [i for i in db_isins if i not in profs]
+        pc = st.columns(3)
+        pc[0].metric("Profiled funds", f"{len(db_isins) - len(no_prof)}/{len(db_isins)}",
+                     help="Every fund maps to the index it tracks, with a look-through "
+                          "region/sector/country/holdings breakdown where sourced.")
+        pc[1].metric("Full look-through", cov["full"],
+                     help="Sector + country + top-10 holdings sourced from the factsheet.")
+        pc[2].metric("Partial (index/region only)", cov["partial"],
+                     help="Strategy + region known; full breakdown not sourced. Nothing "
+                          "is estimated — see the Detail page per fund.")
+        if no_prof:
+            miss = ", ".join(ticker_by_isin.get(i, i) for i in no_prof)
+            st.caption(f"⚠ {len(no_prof)} fund(s) have no profile yet: {miss}")
+        else:
+            st.caption("All funds in the database have an exposure profile "
+                       "(`scripts/etf_profiles.yaml`).")
+    except Exception as exc:  # noqa: BLE001
+        st.caption(f"Profiles unavailable: {exc}")
 
     st.markdown('<p class="section-label">Recent ingest log</p>', unsafe_allow_html=True)
     render_table(data.ingest_log(60), hide_index=True, max_height=380)

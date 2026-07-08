@@ -84,6 +84,33 @@ etfs:
   domicile: IE
   acc_dist: DIST
   ter: 0.0009
+- isin: IE00B3VTMJ91
+  ticker: CBE3.L
+  name: iShares Euro Govt Bond 1-3yr (Acc)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  domicile: IE
+  acc_dist: ACC
+  ter: 0.0015
+- isin: IE00B1FZS913
+  ticker: IBGL.AS
+  name: iShares Euro Govt Bond 15-30yr (Dist)
+  category: Bonds
+  asset_class: bond
+  region: eurozone
+  domicile: IE
+  acc_dist: DIST
+  ter: 0.0015
+- isin: DE0006289465
+  ticker: EXHA.DE
+  name: iShares eb.rexx Government Germany (Dist)
+  category: Bonds
+  asset_class: bond
+  region: germany
+  domicile: DE
+  acc_dist: DIST
+  ter: 0.0016
 - isin: IE00BYXVGZ48
   ticker: FGQI.L
   name: Fidelity Global Quality Income (Acc)

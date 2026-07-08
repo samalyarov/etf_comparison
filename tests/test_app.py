@@ -71,5 +71,19 @@ def test_portfolio_bond_section_both_themes_and_currencies(theme, currency):
     assert not at.exception, f"Portfolio cash-out ({theme}/{currency}) raised: {at.exception}"
 
 
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+@pytest.mark.parametrize("currency", ["Native", "EUR"])
+def test_detail_profile_section_both_themes_and_currencies(theme, currency):
+    """The Detail-page strategy/exposure look-through renders in both themes/currencies."""
+    at = _run("Detail", theme=theme, currency=currency)
+    assert not at.exception, f"Detail profile ({theme}/{currency}) raised: {at.exception}"
+
+
+def test_data_page_profile_coverage():
+    """The Data-page profile-coverage indicator renders."""
+    at = _run("Data")
+    assert not at.exception, at.exception
+
+
 def teardown_module(module):
     os.environ.pop("ETF_FORCE_PAGE", None)

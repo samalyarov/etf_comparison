@@ -1,0 +1,1523 @@
+# ETF strategy / exposure profiles — committed, curated knowledge base.
+#
+# WHY THIS FILE EXISTS
+#   data/etf.db (and data/etf_profiles.yaml) are git-ignored and regenerable, so the curated
+#   exposure research has to live in a committed seed that survives a DB rebuild — exactly
+#   like scripts/candidates.yaml / watchlist.yaml. etf.profiles reads data/etf_profiles.yaml
+#   if present, else falls back to THIS seed.
+#
+# STRUCTURE (DRY: research each index once, funds point at it)
+#   indices:  library of index-level exposure profiles, keyed by a short id.
+#   funds:    every ISIN in the universe -> which index it tracks (+ per-fund overrides).
+#   etf.profiles.get_profile(isin) merges the fund row onto its index profile.
+#
+# DATA-QUALITY RULE (see CLAUDE.md §4): only numbers actually found on an issuer factsheet /
+#   justETF / index-provider factsheet are recorded. Weights that were verified are dated in
+#   `as_of` with `source`. Where a breakdown was NOT obtained, the field is omitted/empty and
+#   `data_complete: false` — nothing is invented. justETF exposes the top-4 sectors/countries
+#   plus an explicit "Other" remainder, so `sector_weights`/`country_weights` sum to ~1.0 by
+#   construction with a real "Other" bucket. `region_weights` are a coarse regional
+#   aggregation (developed/EM regional splits) and are indicative, not a fund-factsheet field.
+#
+# SCHEMA per index entry:
+#   index_name, strategy, asset_class (equity|bond|commodity|reit|multi),
+#   replication (physical|synthetic|null), factor_tilt [list], as_of (date), source,
+#   data_complete (bool), region_weights {region: w}, country_weights {country: w},
+#   sector_weights {sector: w}   (GICS names; bonds omit — use credit_quality instead),
+#   top_holdings [{name, weight}], credit_quality {bucket: w} (bonds), asset_mix (multi).
+
+meta:
+  schema_version: 1
+  region_taxonomy: [North America, Europe, Developed Asia-Pacific, Emerging Markets,
+                    Middle East, Global, Other]
+  notes: >-
+    Sector names normalised to GICS (justETF "Technology" -> Information Technology,
+    "Telecommunication" -> Communication Services). Weights are fractions of 1.0.
+
+indices:
+
+  # ---------------------------------------------------------------- Global developed equity
+  msci_world:
+    index_name: MSCI World
+    strategy: >-
+      Large- and mid-cap stocks across 23 developed markets, free-float market-cap weighted.
+      The default "global developed" building block; ~70% US by construction, no emerging
+      markets. Rebalanced quarterly.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, developed-markets]
+    as_of: 2026-05-29
+    source: MSCI World index factsheet (full GICS) + justETF / iShares (countries, holdings)
+    data_complete: true
+    region_weights: {North America: 0.714, Europe: 0.175, Developed Asia-Pacific: 0.111}
+    country_weights: {United States: 0.6837, Japan: 0.0555, United Kingdom: 0.0305,
+                      Canada: 0.0299, Other: 0.2004}
+    sector_weights: {Information Technology: 0.3027, Financials: 0.1588, Industrials: 0.1164,
+                     Health Care: 0.0908, Consumer Discretionary: 0.0891,
+                     Communication Services: 0.0807, Consumer Staples: 0.0501, Energy: 0.0359,
+                     Materials: 0.0330, Utilities: 0.0260, Real Estate: 0.0167}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0542}
+      - {name: Apple, weight: 0.0509}
+      - {name: Microsoft, weight: 0.0353}
+      - {name: Amazon, weight: 0.0291}
+      - {name: Alphabet A, weight: 0.0246}
+      - {name: Broadcom, weight: 0.0223}
+      - {name: Alphabet C, weight: 0.0193}
+      - {name: Meta Platforms, weight: 0.0154}
+      - {name: Tesla, weight: 0.0136}
+      - {name: Micron Technology, weight: 0.0122}
+
+  ftse_developed:
+    index_name: FTSE Developed
+    strategy: >-
+      Large/mid-cap developed-market equities (FTSE's developed universe; South Korea sits in
+      EM for FTSE, unlike MSCI). Vanguard's developed-world core — near-identical geographic
+      profile to MSCI World.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, developed-markets]
+    as_of: 2026-05
+    source: Vanguard factsheet (geography inferred from FTSE Developed = MSCI World peer)
+    data_complete: false
+    region_weights: {North America: 0.72, Europe: 0.17, Developed Asia-Pacific: 0.11}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Global all-country equity
+  ftse_all_world:
+    index_name: FTSE All-World
+    strategy: >-
+      All-cap-ex-microcap global equity across ~50 developed and emerging markets, market-cap
+      weighted (~90% of investable world). The single-fund "own the world" core (VWCE/VWRL).
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, global, all-country]
+    as_of: 2026-05-31
+    source: justETF / Vanguard factsheet
+    data_complete: true
+    region_weights: {North America: 0.60, Europe: 0.15, Developed Asia-Pacific: 0.09,
+                     Emerging Markets: 0.16}
+    country_weights: {United States: 0.5687, Japan: 0.0559, Taiwan: 0.0320,
+                      South Korea: 0.0284, Other: 0.3150}
+    sector_weights: {Information Technology: 0.3133, Financials: 0.1353, Industrials: 0.0960,
+                     Consumer Discretionary: 0.0900, Other: 0.3654}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0460}
+      - {name: Apple, weight: 0.0418}
+      - {name: Microsoft, weight: 0.0311}
+      - {name: Amazon, weight: 0.0242}
+      - {name: Alphabet A, weight: 0.0205}
+      - {name: Broadcom, weight: 0.0192}
+      - {name: Taiwan Semiconductor, weight: 0.0170}
+      - {name: Alphabet C, weight: 0.0166}
+      - {name: Meta Platforms, weight: 0.0129}
+      - {name: Tesla, weight: 0.0114}
+
+  msci_acwi:
+    index_name: MSCI ACWI
+    strategy: >-
+      Large/mid-cap across 23 developed + 24 emerging markets, market-cap weighted. MSCI's
+      whole-world benchmark (~85% of global investable equity); the MSCI analogue of FTSE
+      All-World.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, global, all-country]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.625, Europe: 0.155, Developed Asia-Pacific: 0.09,
+                     Emerging Markets: 0.13}
+    country_weights: {United States: 0.5994, Japan: 0.0484, Taiwan: 0.0320,
+                      South Korea: 0.0283, Other: 0.2919}
+    sector_weights: {Information Technology: 0.3239, Financials: 0.1384, Industrials: 0.0965,
+                     Consumer Discretionary: 0.0904, Other: 0.3508}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0474}
+      - {name: Apple, weight: 0.0446}
+      - {name: Microsoft, weight: 0.0309}
+      - {name: Amazon, weight: 0.0255}
+      - {name: Alphabet A, weight: 0.0215}
+      - {name: Broadcom, weight: 0.0196}
+      - {name: Taiwan Semiconductor, weight: 0.0180}
+      - {name: Alphabet C, weight: 0.0169}
+      - {name: Meta Platforms, weight: 0.0135}
+      - {name: Tesla, weight: 0.0119}
+
+  msci_acwi_imi:
+    index_name: MSCI ACWI IMI
+    strategy: >-
+      MSCI ACWI plus small caps (Investable Market Index) — ~99% of the global investable
+      equity universe, developed + emerging, all-cap. Broadest single-index equity exposure.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [global, all-country, all-cap]
+    as_of: 2026-05
+    source: SPDR factsheet (exposure ~ MSCI ACWI with a small-cap tail)
+    data_complete: false
+    region_weights: {North America: 0.62, Europe: 0.155, Developed Asia-Pacific: 0.095,
+                     Emerging Markets: 0.13}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  solactive_gbs_acwi:
+    index_name: Solactive GBS Global Markets Large & Mid Cap
+    strategy: >-
+      Amundi Prime All Country World — ultra-low-cost all-country developed+EM large/mid-cap
+      via Solactive's global benchmark. Exposure closely tracks MSCI ACWI / FTSE All-World.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [global, all-country, low-cost]
+    as_of: 2026-05
+    source: Amundi factsheet (exposure ~ all-country large/mid peer)
+    data_complete: false
+    region_weights: {North America: 0.62, Europe: 0.155, Developed Asia-Pacific: 0.095,
+                     Emerging Markets: 0.13}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- US equity
+  sp500:
+    index_name: S&P 500
+    strategy: >-
+      500 large-cap US companies, float-adjusted market-cap weighted with a profitability
+      screen. The US large-cap benchmark; highly concentrated in mega-cap technology.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, us, tech-heavy]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 0.9488, Ireland: 0.0140, Other: 0.0372}
+    sector_weights: {Information Technology: 0.3888, Communication Services: 0.1032,
+                     Consumer Discretionary: 0.0979, Financials: 0.0929, Other: 0.3172}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0788}
+      - {name: Apple, weight: 0.0704}
+      - {name: Microsoft, weight: 0.0514}
+      - {name: Amazon, weight: 0.0406}
+      - {name: Alphabet A, weight: 0.0340}
+      - {name: Broadcom, weight: 0.0325}
+      - {name: Alphabet C, weight: 0.0270}
+      - {name: Meta Platforms, weight: 0.0213}
+      - {name: Tesla, weight: 0.0188}
+      - {name: Micron Technology, weight: 0.0168}
+
+  msci_usa:
+    index_name: MSCI USA
+    strategy: >-
+      Large/mid-cap US equities (~600 stocks), market-cap weighted. Broader than the S&P 500
+      (adds mid-caps, no committee/profitability screen) but a near-identical risk profile.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, us, tech-heavy]
+    as_of: 2026-05
+    source: iShares factsheet (profile ~ S&P 500 with a mid-cap tail)
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_usa_sri:
+    index_name: MSCI USA SRI Select Reduced Fossil Fuels
+    strategy: >-
+      Best-in-class SRI screen on MSCI USA: keeps the highest ESG-rated US firms per sector,
+      excludes fossil fuels, tobacco, weapons, etc. Concentrated, growth/tech-tilted subset.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [us, esg, sri, concentrated]
+    as_of: 2026-05
+    source: iShares factsheet (SRI-screened MSCI USA)
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Nasdaq & tech
+  nasdaq100:
+    index_name: Nasdaq-100
+    strategy: >-
+      The 100 largest non-financial companies on Nasdaq, modified market-cap weighted. Not a
+      sector fund but extremely tech/growth-concentrated by composition; excludes financials.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, us, growth, tech-heavy]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.92, Other: 0.08}
+    country_weights: {United States: 0.9189, Other: 0.0811}
+    sector_weights: {Information Technology: 0.5570, Communication Services: 0.1338,
+                     Consumer Discretionary: 0.1138, Consumer Staples: 0.0640, Other: 0.1314}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0814}
+      - {name: Apple, weight: 0.0727}
+      - {name: Microsoft, weight: 0.0530}
+      - {name: Micron Technology, weight: 0.0479}
+      - {name: Amazon, weight: 0.0461}
+      - {name: AMD, weight: 0.0369}
+      - {name: Alphabet A, weight: 0.0351}
+      - {name: Tesla, weight: 0.0345}
+      - {name: Broadcom, weight: 0.0336}
+      - {name: Alphabet C, weight: 0.0325}
+
+  msci_world_it:
+    index_name: MSCI World Information Technology
+    strategy: >-
+      The Information Technology sector of MSCI World — global developed tech (hardware,
+      software, semis), market-cap weighted. Single-sector, ~US-dominated.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [sector-technology, developed, tech-heavy]
+    as_of: 2026-05
+    source: Xtrackers factsheet (single-sector index = ~100% Information Technology)
+    data_complete: false
+    region_weights: {North America: 0.85, Europe: 0.06, Developed Asia-Pacific: 0.09}
+    country_weights: {}
+    sector_weights: {Information Technology: 1.0}
+    top_holdings: []
+
+  sp500_it:
+    index_name: S&P 500 Information Technology
+    strategy: >-
+      The Information Technology sector of the S&P 500 — US mega-cap tech (Apple, Microsoft,
+      NVIDIA, Broadcom), market-cap weighted. Single-sector, single-country.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [sector-technology, us, tech-heavy]
+    as_of: 2026-05
+    source: iShares factsheet (single-sector index = 100% Information Technology)
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    sector_weights: {Information Technology: 1.0}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Europe equity
+  msci_europe:
+    index_name: MSCI Europe
+    strategy: >-
+      Large/mid-cap across 15 developed European markets, market-cap weighted. Financials- and
+      industrials-led, no US exposure; UK/France/Switzerland/Germany dominate.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, europe, value-leaning]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Europe: 1.0}
+    country_weights: {United Kingdom: 0.1897, Germany: 0.1378, France: 0.1361,
+                      Switzerland: 0.1259, Other: 0.4105}
+    sector_weights: {Financials: 0.2248, Industrials: 0.1805, Information Technology: 0.0951,
+                     Health Care: 0.0847, Other: 0.4149}
+    top_holdings:
+      - {name: ASML Holding, weight: 0.0447}
+      - {name: HSBC Holdings, weight: 0.0230}
+      - {name: Roche Holding, weight: 0.0211}
+      - {name: AstraZeneca, weight: 0.0200}
+      - {name: Novartis, weight: 0.0197}
+      - {name: Nestle, weight: 0.0187}
+      - {name: Shell, weight: 0.0168}
+      - {name: Siemens, weight: 0.0167}
+      - {name: SAP, weight: 0.0135}
+      - {name: Banco Santander, weight: 0.0127}
+
+  stoxx_europe_600:
+    index_name: STOXX Europe 600
+    strategy: >-
+      600 large/mid/small-cap companies across 17 European countries (~90% of European market
+      cap), ICB-classified. Broader (adds small caps) than MSCI Europe; similar geography.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [europe, all-cap]
+    as_of: 2026-05
+    source: STOXX index factsheet (country weights); sectors/holdings not captured
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {United Kingdom: 0.223, France: 0.166, Switzerland: 0.149,
+                      Germany: 0.141, Other: 0.321}
+    sector_weights: {}
+    top_holdings: []
+
+  ftse_dev_europe:
+    index_name: FTSE Developed Europe
+    strategy: >-
+      Large/mid-cap developed-Europe equities, market-cap weighted (Vanguard's Europe core).
+      Geography and sector profile close to MSCI Europe / STOXX Europe 600.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [large-cap, europe]
+    as_of: 2026-05
+    source: Vanguard factsheet (profile ~ MSCI Europe peer)
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_emu:
+    index_name: MSCI EMU
+    strategy: >-
+      Large/mid-cap equities of the Economic & Monetary Union (eurozone only) — excludes the
+      UK, Switzerland, Nordics. France/Germany/Netherlands lead; single-currency exposure.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [eurozone, large-cap]
+    as_of: 2026-05
+    source: iShares factsheet (eurozone-only subset of MSCI Europe)
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Emerging markets
+  msci_em:
+    index_name: MSCI Emerging Markets
+    strategy: >-
+      Large/mid-cap across 24 emerging markets, market-cap weighted. Dominated by Taiwan,
+      Korea, China and India; heavily tech (TSMC/Samsung/SK hynix) and financials.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [emerging-markets, large-cap, tech-heavy]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {Taiwan: 0.2607, South Korea: 0.2310, China: 0.1803, India: 0.0937,
+                      Other: 0.2343}
+    sector_weights: {Information Technology: 0.4371, Financials: 0.1659,
+                     Consumer Discretionary: 0.0773, Communication Services: 0.0567,
+                     Other: 0.2630}
+    top_holdings:
+      - {name: Taiwan Semiconductor, weight: 0.1468}
+      - {name: Samsung Electronics, weight: 0.0780}
+      - {name: SK hynix, weight: 0.0678}
+      - {name: Tencent Holdings, weight: 0.0266}
+      - {name: Alibaba Group, weight: 0.0205}
+      - {name: MediaTek, weight: 0.0158}
+      - {name: Delta Electronics, weight: 0.0121}
+      - {name: Hon Hai Precision, weight: 0.0089}
+      - {name: Samsung Electronics (pref), weight: 0.0085}
+      - {name: China Construction Bank, weight: 0.0072}
+
+  msci_em_imi:
+    index_name: MSCI Emerging Markets IMI
+    strategy: >-
+      MSCI EM plus small caps (all-cap emerging universe, ~99% of EM investable equity). Same
+      Taiwan/Korea/China/India tilt as MSCI EM with a broader small-cap tail.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [emerging-markets, all-cap]
+    as_of: 2026-05
+    source: iShares factsheet (profile ~ MSCI EM with small-cap tail)
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  ftse_emerging:
+    index_name: FTSE Emerging
+    strategy: >-
+      Large/mid-cap emerging-market equities, market-cap weighted (Vanguard's EM core). FTSE
+      classifies South Korea as developed, so vs MSCI EM this has more China/India, no Korea.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [emerging-markets, large-cap]
+    as_of: 2026-05
+    source: Vanguard factsheet (FTSE EM excludes South Korea)
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_em_ex_china:
+    index_name: MSCI Emerging Markets ex China
+    strategy: >-
+      MSCI EM with China removed — lets an investor size China separately. Taiwan/Korea/India
+      dominate; higher India and Taiwan weight than the parent EM index.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [emerging-markets, ex-china]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI EM minus China)
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Regional / country
+  msci_japan:
+    index_name: MSCI Japan IMI
+    strategy: >-
+      All-cap Japanese equities, market-cap weighted. Industrials/tech/financials led
+      (Toyota, SoftBank, Mitsubishi UFJ, Tokyo Electron); single-country developed Asia.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [japan, all-cap]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Developed Asia-Pacific: 1.0}
+    country_weights: {Japan: 0.9598, Other: 0.0402}
+    sector_weights: {Industrials: 0.2445, Information Technology: 0.1562, Financials: 0.1504,
+                     Consumer Discretionary: 0.1472, Other: 0.3017}
+    top_holdings:
+      - {name: Mitsubishi UFJ Financial, weight: 0.0310}
+      - {name: Toyota Motor, weight: 0.0279}
+      - {name: SoftBank Group, weight: 0.0269}
+      - {name: Tokyo Electron, weight: 0.0228}
+      - {name: Hitachi, weight: 0.0221}
+      - {name: Sumitomo Mitsui Financial, weight: 0.0205}
+      - {name: Kioxia Holdings, weight: 0.0200}
+      - {name: Sony Group, weight: 0.0195}
+      - {name: Advantest, weight: 0.0186}
+      - {name: Mizuho Financial, weight: 0.0165}
+
+  msci_pacific_ex_japan:
+    index_name: MSCI Pacific ex Japan
+    strategy: >-
+      Large/mid-cap developed Asia-Pacific excluding Japan — dominated by Australia (banks &
+      miners), plus Hong Kong, Singapore, New Zealand. Financials/materials heavy.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [developed-asia-pacific, ex-japan, financials-materials]
+    as_of: 2026-05
+    source: iShares factsheet (Australia-led developed Pacific)
+    data_complete: false
+    region_weights: {Developed Asia-Pacific: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_india:
+    index_name: MSCI India
+    strategy: >-
+      Large/mid-cap Indian equities, market-cap weighted. Financials-led (HDFC/ICICI), with
+      Reliance, Infosys and consumer names; single emerging-market country.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [india, emerging-markets, financials]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {India: 0.8681, Other: 0.1319}
+    sector_weights: {Financials: 0.2339, Consumer Discretionary: 0.1116, Industrials: 0.0970,
+                     Energy: 0.0857, Other: 0.4718}
+    top_holdings:
+      - {name: HDFC Bank, weight: 0.0640}
+      - {name: Reliance Industries, weight: 0.0623}
+      - {name: ICICI Bank, weight: 0.0503}
+      - {name: Bharti Airtel, weight: 0.0388}
+      - {name: Infosys, weight: 0.0274}
+      - {name: Axis Bank, weight: 0.0224}
+      - {name: Larsen & Toubro, weight: 0.0213}
+      - {name: Mahindra & Mahindra, weight: 0.0206}
+      - {name: Bajaj Finance, weight: 0.0179}
+      - {name: Kotak Mahindra Bank, weight: 0.0166}
+
+  ftse_india:
+    index_name: FTSE India 30/18 Capped
+    strategy: >-
+      Large/mid-cap Indian equities via FTSE (Franklin), capped to satisfy UCITS
+      diversification. Same single-country India exposure as MSCI India, minor weight
+      differences from the capping.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [india, emerging-markets]
+    as_of: 2026-05
+    source: Franklin factsheet (profile ~ MSCI India)
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {India: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_china:
+    index_name: MSCI China
+    strategy: >-
+      Large/mid-cap Chinese equities across share classes (H/ADR/A), market-cap weighted.
+      Consumer-discretionary and communication led (Tencent, Alibaba) plus state banks.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [china, emerging-markets]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {China: 0.8966, Other: 0.1034}
+    sector_weights: {Consumer Discretionary: 0.2390, Financials: 0.1869,
+                     Communication Services: 0.1749, Information Technology: 0.1066,
+                     Other: 0.2926}
+    top_holdings:
+      - {name: Tencent Holdings, weight: 0.1313}
+      - {name: Alibaba Group, weight: 0.1010}
+      - {name: China Construction Bank, weight: 0.0357}
+      - {name: Xiaomi, weight: 0.0240}
+      - {name: ICBC, weight: 0.0216}
+      - {name: Ping An Insurance, weight: 0.0195}
+      - {name: PDD Holdings, weight: 0.0188}
+      - {name: Meituan, weight: 0.0185}
+      - {name: Bank of China, weight: 0.0174}
+      - {name: NetEase, weight: 0.0170}
+
+  # ---------------------------------------------------------------- Small cap
+  msci_world_smallcap:
+    index_name: MSCI World Small Cap
+    strategy: >-
+      Small-cap developed-market equities, market-cap weighted (~3,900 stocks). Industrials-
+      led, far less concentrated than large-cap World; a size-factor complement.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [small-cap, developed-markets, size]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.60, Developed Asia-Pacific: 0.18, Europe: 0.16,
+                     Other: 0.06}
+    country_weights: {United States: 0.5153, Japan: 0.1171, United Kingdom: 0.0418,
+                      Canada: 0.0347, Other: 0.2911}
+    sector_weights: {Industrials: 0.1760, Information Technology: 0.1276, Financials: 0.1210,
+                     Consumer Discretionary: 0.0974, Other: 0.4780}
+    top_holdings:
+      - {name: Sandisk, weight: 0.0226}
+      - {name: nVent Electric, weight: 0.0025}
+      - {name: Sterling Infrastructure, weight: 0.0024}
+      - {name: MACOM Technology, weight: 0.0023}
+      - {name: ATI Inc, weight: 0.0022}
+      - {name: Nextpower, weight: 0.0021}
+      - {name: Carpenter Technology, weight: 0.0021}
+      - {name: Akamai Technologies, weight: 0.0021}
+      - {name: MKS Instruments, weight: 0.0020}
+      - {name: Albemarle, weight: 0.0019}
+
+  msci_em_smallcap:
+    index_name: MSCI Emerging Markets Small Cap
+    strategy: >-
+      Small-cap emerging-market equities, market-cap weighted. More domestic-demand and
+      industrials/materials tilted than large-cap EM; a diversifying EM size sleeve.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [small-cap, emerging-markets, size]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_usa_smallcap_value:
+    index_name: MSCI USA Small Cap Value Weighted
+    strategy: >-
+      US small caps re-weighted toward value fundamentals (book value, earnings, sales, cash
+      earnings) rather than market cap. A US small-cap/value factor tilt (SPDR/ZPRV).
+    asset_class: equity
+    replication: physical
+    factor_tilt: [small-cap, value, us, size]
+    as_of: 2026-05
+    source: SPDR factsheet (value-weighted US small cap)
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_europe_smallcap_value:
+    index_name: MSCI Europe Small Cap Value Weighted
+    strategy: >-
+      European small caps re-weighted on value fundamentals rather than market cap. A
+      Europe small-cap/value factor tilt (SPDR/ZPRX).
+    asset_class: equity
+    replication: physical
+    factor_tilt: [small-cap, value, europe, size]
+    as_of: 2026-05
+    source: SPDR factsheet (value-weighted European small cap)
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Factor / smart beta
+  msci_world_momentum:
+    index_name: MSCI World Momentum
+    strategy: >-
+      Developed-world stocks with strong risk-adjusted price momentum (6- and 12-month),
+      semi-annually reconstituted. Concentrated, high-turnover; tilt rotates with leadership.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [momentum, developed-markets, factor]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Momentum)
+    data_complete: false
+    region_weights: {North America: 0.72, Europe: 0.16, Developed Asia-Pacific: 0.12}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_world_quality:
+    index_name: MSCI World Quality
+    strategy: >-
+      Developed-world stocks scored on high return-on-equity, stable earnings growth and low
+      leverage. Quality-factor tilt; typically tech/health/staples heavy, mega-cap-led.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [quality, developed-markets, factor]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Quality)
+    data_complete: false
+    region_weights: {North America: 0.73, Europe: 0.15, Developed Asia-Pacific: 0.12}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_world_value:
+    index_name: MSCI World Enhanced Value
+    strategy: >-
+      Developed-world stocks cheap on price/book, price/forward-earnings and EV/cash-flow,
+      sector-relative. Value-factor tilt; financials/energy/industrials heavier than parent.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [value, developed-markets, factor]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Enhanced Value)
+    data_complete: false
+    region_weights: {North America: 0.62, Europe: 0.20, Developed Asia-Pacific: 0.18}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_world_size:
+    index_name: MSCI World Equal Weighted (Size)
+    strategy: >-
+      Developed-world constituents equal-weighted rather than market-cap weighted, giving a
+      structural tilt toward smaller and mid names. Low-concentration size factor.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [size, equal-weight, developed-markets, factor]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Equal Weighted)
+    data_complete: false
+    region_weights: {North America: 0.60, Europe: 0.22, Developed Asia-Pacific: 0.18}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_world_minvol:
+    index_name: MSCI World Minimum Volatility
+    strategy: >-
+      Optimised subset of MSCI World that minimises expected portfolio volatility subject to
+      constraints. Defensive tilt (staples/health/utilities); lower beta than the parent.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [low-volatility, defensive, developed-markets, factor]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Min Vol)
+    data_complete: false
+    region_weights: {North America: 0.68, Europe: 0.18, Developed Asia-Pacific: 0.14}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_world_multifactor:
+    index_name: MSCI World Diversified Multiple-Factor
+    strategy: >-
+      Developed-world stocks jointly optimised for value, momentum, quality and size at once.
+      A single-fund multi-factor blend; sector/geography kept close to the parent.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [multifactor, value, momentum, quality, size, developed-markets]
+    as_of: 2026-05
+    source: iShares factsheet (MSCI World Diversified Multiple-Factor)
+    data_complete: false
+    region_weights: {North America: 0.66, Europe: 0.18, Developed Asia-Pacific: 0.16}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Dividend / income
+  ftse_high_div:
+    index_name: FTSE All-World High Dividend Yield
+    strategy: >-
+      All-world stocks forecast to pay above-average dividends (ex-REITs), market-cap
+      weighted. Value/financials tilt, lower tech than the parent; income-oriented core.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [dividend, value, global, financials-heavy]
+    as_of: 2026-05-31
+    source: justETF / Vanguard factsheet
+    data_complete: true
+    region_weights: {North America: 0.40, Europe: 0.25, Developed Asia-Pacific: 0.15,
+                     Emerging Markets: 0.12, Other: 0.08}
+    country_weights: {United States: 0.3679, Japan: 0.0915, United Kingdom: 0.0584,
+                      Canada: 0.0423, Other: 0.4399}
+    sector_weights: {Financials: 0.2676, Industrials: 0.1135, Health Care: 0.0949,
+                     Information Technology: 0.0926, Other: 0.4314}
+    top_holdings:
+      - {name: JPMorgan Chase, weight: 0.0155}
+      - {name: Exxon Mobil, weight: 0.0144}
+      - {name: Johnson & Johnson, weight: 0.0127}
+      - {name: Cisco Systems, weight: 0.0112}
+      - {name: AbbVie, weight: 0.0090}
+      - {name: UnitedHealth Group, weight: 0.0081}
+      - {name: Chevron, weight: 0.0080}
+      - {name: Procter & Gamble, weight: 0.0079}
+      - {name: HSBC Holdings, weight: 0.0076}
+      - {name: Home Depot, weight: 0.0074}
+
+  sp_global_div_aristocrats:
+    index_name: S&P Global Dividend Aristocrats
+    strategy: >-
+      Global high-yield stocks with a multi-year record of stable/rising dividends, yield-
+      weighted and capped. Deep value/high-yield tilt; utilities, financials, real estate.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [dividend, high-yield, value, global]
+    as_of: 2026-05
+    source: SPDR factsheet
+    data_complete: false
+    region_weights: {North America: 0.35, Europe: 0.30, Developed Asia-Pacific: 0.20,
+                     Emerging Markets: 0.10, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  stoxx_global_select_div:
+    index_name: STOXX Global Select Dividend 100
+    strategy: >-
+      100 highest-yielding stocks across the Americas, Europe and Asia-Pacific passing
+      dividend-quality screens, yield-weighted. High-yield income tilt, financials-heavy.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [dividend, high-yield, value, global]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 0.40, Europe: 0.30, Developed Asia-Pacific: 0.25,
+                     Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  fidelity_global_quality_income:
+    index_name: Fidelity Global Quality Income
+    strategy: >-
+      Developed-world dividend payers screened for quality (profitability, low leverage) and
+      sustainable yield, market-cap weighted. A quality+income blend, less deep-value than
+      pure high-yield funds.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [dividend, quality, developed-markets]
+    as_of: 2026-05
+    source: Fidelity factsheet
+    data_complete: false
+    region_weights: {North America: 0.60, Europe: 0.22, Developed Asia-Pacific: 0.18}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Sector & thematic
+  mvis_semiconductor:
+    index_name: MarketVector US Listed Semiconductor 10% Capped
+    strategy: >-
+      The 25 largest US-listed semiconductor companies, market-cap weighted with a 10% cap.
+      Pure semiconductor sub-industry bet; extremely concentrated and cyclical.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, semiconductors, technology, concentrated]
+    as_of: 2026-05-29
+    source: justETF / VanEck factsheet
+    data_complete: true
+    region_weights: {North America: 0.77, Other: 0.23}
+    country_weights: {United States: 0.7711, Other: 0.2289}
+    sector_weights: {Information Technology: 0.7802, Other: 0.2198}
+    top_holdings:
+      - {name: Micron Technology, weight: 0.1433}
+      - {name: AMD, weight: 0.1223}
+      - {name: Broadcom, weight: 0.0833}
+      - {name: Intel, weight: 0.0802}
+      - {name: Taiwan Semiconductor, weight: 0.0751}
+      - {name: ASML Holding, weight: 0.0741}
+      - {name: NVIDIA, weight: 0.0723}
+      - {name: Lam Research, weight: 0.0563}
+      - {name: Applied Materials, weight: 0.0513}
+      - {name: Texas Instruments, weight: 0.0399}
+
+  nasdaq_ai_bigdata:
+    index_name: Nasdaq Global Artificial Intelligence and Big Data
+    strategy: >-
+      Companies deriving revenue from AI, big-data and cloud technologies, equal-ish weighted
+      across the theme. Tech/semiconductor and Korea-heavy; a broad AI-value-chain bet.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, artificial-intelligence, technology]
+    as_of: 2026-05-27
+    source: justETF / Xtrackers factsheet
+    data_complete: true
+    region_weights: {North America: 0.71, Developed Asia-Pacific: 0.16, Europe: 0.05,
+                     Other: 0.08}
+    country_weights: {United States: 0.7129, South Korea: 0.1643, Germany: 0.0205,
+                      China: 0.0133, Other: 0.0890}
+    sector_weights: {Information Technology: 0.7295, Communication Services: 0.1160,
+                     Consumer Discretionary: 0.0446, Financials: 0.0418, Other: 0.0681}
+    top_holdings:
+      - {name: Micron Technology, weight: 0.0897}
+      - {name: Samsung Electronics, weight: 0.0838}
+      - {name: SK hynix, weight: 0.0770}
+      - {name: Intel, weight: 0.0542}
+      - {name: Cisco Systems, weight: 0.0426}
+      - {name: Alphabet A, weight: 0.0424}
+      - {name: Amazon, weight: 0.0402}
+      - {name: Apple, weight: 0.0392}
+      - {name: NVIDIA, weight: 0.0392}
+      - {name: Meta Platforms, weight: 0.0328}
+
+  wisdomtree_ai:
+    index_name: WisdomTree Artificial Intelligence
+    strategy: >-
+      Companies across the AI value chain (engineers, enablers, enhancers), weighted by AI
+      relevance. A thematic AI bet distinct from the Nasdaq AI index (more software/pure-play).
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, artificial-intelligence, technology]
+    as_of: 2026-05
+    source: WisdomTree factsheet
+    data_complete: false
+    region_weights: {North America: 0.65, Developed Asia-Pacific: 0.18, Europe: 0.08,
+                     Other: 0.09}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  istoxx_robotics:
+    index_name: iSTOXX FactSet Automation & Robotics
+    strategy: >-
+      Global companies with meaningful revenue from automation and robotics, weighted by
+      exposure. Industrials- and tech-heavy thematic; Japan/US concentrated.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, robotics, automation, industrials, technology]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 0.45, Developed Asia-Pacific: 0.30, Europe: 0.20,
+                     Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  istoxx_digitalisation:
+    index_name: STOXX Global Digitalisation
+    strategy: >-
+      Global companies enabling the digital economy (e-commerce, digital payments, software,
+      connectivity). Technology/communication thematic tilt.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, digitalisation, technology]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 0.60, Developed Asia-Pacific: 0.20, Europe: 0.15,
+                     Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  istoxx_healthcare_innovation:
+    index_name: iSTOXX FactSet Breakthrough Healthcare
+    strategy: >-
+      Global companies in innovative healthcare (genomics, medtech, digital health,
+      immunology). Single-sector health-care thematic; US-heavy, higher small/mid weight.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, healthcare, health-care]
+    as_of: 2026-05
+    source: iShares factsheet (single-sector = Health Care dominated)
+    data_complete: false
+    region_weights: {North America: 0.70, Europe: 0.18, Developed Asia-Pacific: 0.09,
+                     Other: 0.03}
+    country_weights: {}
+    sector_weights: {Health Care: 1.0}
+    top_holdings: []
+
+  sp_global_water:
+    index_name: S&P Global Water
+    strategy: >-
+      50 global companies in water utilities, infrastructure and equipment, balanced across
+      the two clusters. Utilities/industrials thematic; defensive, developed-market heavy.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, water, utilities, industrials]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 0.55, Europe: 0.30, Developed Asia-Pacific: 0.10,
+                     Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  stoxx_ev:
+    index_name: STOXX Global Electric Vehicles & Driving Technology
+    strategy: >-
+      Global companies in EV manufacturing, batteries and autonomous-driving technology.
+      Consumer-discretionary/industrials/tech thematic; cyclical and concentrated.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, electric-vehicles, consumer-discretionary, technology]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 0.45, Developed Asia-Pacific: 0.25, Europe: 0.15,
+                     Emerging Markets: 0.10, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  sp_clean_energy:
+    index_name: S&P Global Clean Energy Transition
+    strategy: >-
+      Global companies in clean-energy production and enabling technology (solar, wind,
+      hydrogen, utilities). Utilities/industrials/tech thematic; rate-sensitive, EM exposure.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [thematic, clean-energy, utilities, industrials]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.40, Emerging Markets: 0.25, Europe: 0.20,
+                     Middle East: 0.06, Other: 0.09}
+    country_weights: {United States: 0.3622, China: 0.1670, Israel: 0.0598, Brazil: 0.0487,
+                      Other: 0.3623}
+    sector_weights: {Utilities: 0.3076, Industrials: 0.3059, Information Technology: 0.2274,
+                     Other: 0.1591}
+    top_holdings:
+      - {name: Bloom Energy, weight: 0.1213}
+      - {name: First Solar, weight: 0.0955}
+      - {name: Nextpower, weight: 0.0839}
+      - {name: Enphase Energy, weight: 0.0591}
+      - {name: China Yangtze Power, weight: 0.0531}
+      - {name: Plug Power, weight: 0.0363}
+      - {name: SolarEdge Technologies, weight: 0.0302}
+      - {name: Vestas Wind Systems, weight: 0.0271}
+      - {name: Equatorial SA, weight: 0.0226}
+      - {name: Suzlon Energy, weight: 0.0213}
+
+  # ---------------------------------------------------------------- Real estate (REIT)
+  epra_nareit_developed:
+    index_name: FTSE EPRA/Nareit Developed Dividend+
+    strategy: >-
+      Listed REITs and real-estate companies across developed markets with a dividend screen,
+      market-cap weighted. 100% real-estate sector; US-dominated, rate-sensitive income.
+    asset_class: reit
+    replication: physical
+    factor_tilt: [real-estate, dividend, developed-markets]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.66, Developed Asia-Pacific: 0.16, Europe: 0.13,
+                     Other: 0.05}
+    country_weights: {United States: 0.6391, Japan: 0.0699, Australia: 0.0368,
+                      United Kingdom: 0.0340, Other: 0.2202}
+    sector_weights: {Real Estate: 1.0}
+    top_holdings:
+      - {name: Prologis, weight: 0.0761}
+      - {name: Equinix, weight: 0.0597}
+      - {name: Simon Property Group, weight: 0.0380}
+      - {name: Digital Realty Trust, weight: 0.0374}
+      - {name: Realty Income, weight: 0.0321}
+      - {name: Public Storage, weight: 0.0274}
+      - {name: Ventas, weight: 0.0226}
+      - {name: Iron Mountain, weight: 0.0215}
+      - {name: VICI Properties, weight: 0.0175}
+      - {name: Extra Space Storage, weight: 0.0174}
+
+  epra_nareit_europe:
+    index_name: FTSE EPRA/Nareit Developed Europe
+    strategy: >-
+      Listed REITs and real-estate companies across developed Europe with a dividend screen.
+      100% real-estate sector; UK/Germany/France/Sweden dominated, rate-sensitive.
+    asset_class: reit
+    replication: physical
+    factor_tilt: [real-estate, dividend, europe]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    sector_weights: {Real Estate: 1.0}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Commodities
+  gold:
+    index_name: LBMA Gold Price (physical)
+    strategy: >-
+      Physically-backed gold bullion held in vaults; the ETC tracks the spot gold price. A
+      currency/inflation hedge and portfolio diversifier — not an equity, no dividends.
+    asset_class: commodity
+    replication: physical
+    factor_tilt: [gold, safe-haven, inflation-hedge]
+    as_of: 2026-05
+    source: issuer prospectus (physically-backed gold)
+    data_complete: true
+    region_weights: {Global: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings:
+      - {name: Physical gold bullion, weight: 1.0}
+
+  silver:
+    index_name: LBMA Silver Price (physical)
+    strategy: >-
+      Physically-backed silver bullion; tracks the spot silver price. More volatile and more
+      industrially-driven than gold, but held here as a precious-metal diversifier.
+    asset_class: commodity
+    replication: physical
+    factor_tilt: [silver, precious-metals, inflation-hedge]
+    as_of: 2026-05
+    source: issuer prospectus (physically-backed silver)
+    data_complete: true
+    region_weights: {Global: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings:
+      - {name: Physical silver bullion, weight: 1.0}
+
+  diversified_commodity:
+    index_name: Bloomberg Commodity
+    strategy: >-
+      A broad, diversified basket of commodity futures across energy, agriculture, industrial
+      and precious metals, capped for diversification (swap-based). Real-asset/inflation sleeve.
+    asset_class: commodity
+    replication: synthetic
+    factor_tilt: [commodities, diversified, inflation-hedge]
+    as_of: 2026-05
+    source: iShares factsheet (Bloomberg Commodity basket)
+    data_complete: false
+    region_weights: {Global: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Bonds (credit_quality, not GICS)
+  bloomberg_global_agg:
+    index_name: Bloomberg Global Aggregate
+    strategy: >-
+      Investment-grade government, government-related, corporate and securitised bonds across
+      developed and emerging markets (~19,600 bonds). The global IG bond core; EUR-hedged
+      share classes remove currency risk. Duration ~6-7y.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, aggregate, global, government-and-corporate]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {North America: 0.42, Europe: 0.28, Developed Asia-Pacific: 0.16,
+                     Emerging Markets: 0.08, Other: 0.06}
+    country_weights: {United States: 0.1902, Japan: 0.0990, China: 0.0698, France: 0.0347,
+                      Other: 0.6063}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  bloomberg_euro_treasury:
+    index_name: Bloomberg Euro Treasury Bond
+    strategy: >-
+      Investment-grade eurozone government bonds, all maturities, market-value weighted.
+      France/Italy/Germany/Spain dominate; the euro govvie core. Rate-sensitive, no FX risk.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, government, eurozone]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Europe: 1.0}
+    country_weights: {France: 0.2202, Italy: 0.1780, Germany: 0.1442, Spain: 0.1260,
+                      Other: 0.3316}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  bloomberg_euro_corp:
+    index_name: Bloomberg Euro Corporate Bond
+    strategy: >-
+      Investment-grade EUR-denominated corporate bonds (industrials, utilities, financials),
+      ~4,100 issues. Adds credit spread over govvies; modest FX risk if issuer non-eurozone.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, corporate, eurozone, credit]
+    as_of: 2026-05-29
+    source: justETF / iShares factsheet
+    data_complete: true
+    region_weights: {Europe: 0.65, North America: 0.20, Other: 0.15}
+    country_weights: {France: 0.1563, United States: 0.1524, Netherlands: 0.1176,
+                      Germany: 0.0645, Other: 0.5092}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  iboxx_euro_hy:
+    index_name: iBoxx EUR Liquid High Yield
+    strategy: >-
+      Sub-investment-grade (high-yield) EUR corporate bonds, liquidity-screened. Highest
+      income and highest credit/default risk of the bond sleeve; equity-like in stress.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [high-yield, sub-investment-grade, corporate, eurozone, credit]
+    as_of: 2026-05
+    source: iShares factsheet (country breakdown not itemised)
+    data_complete: false
+    region_weights: {Europe: 0.70, North America: 0.15, Other: 0.15}
+    country_weights: {}
+    credit_quality: {Sub-investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  euro_govt_1_3:
+    index_name: Bloomberg Euro Government Bond 1-3yr
+    strategy: >-
+      Short-dated (1-3y) investment-grade eurozone government bonds. Low duration/low rate
+      risk; a cash-plus / capital-preservation sleeve.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, government, eurozone, short-duration]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  euro_govt_15_30:
+    index_name: Bloomberg Euro Government Bond 15-30yr
+    strategy: >-
+      Long-dated (15-30y) investment-grade eurozone government bonds. Very high duration —
+      large price swings with rates; a rate-hedging / long-liability sleeve.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, government, eurozone, long-duration]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  euro_inflation_linked:
+    index_name: Bloomberg Euro Government Inflation-Linked Bond
+    strategy: >-
+      Eurozone inflation-linked government bonds (linkers) whose principal/coupons track
+      inflation. A direct inflation hedge; real-rate sensitive.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [government, eurozone, inflation-linked]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  ebrexx_germany:
+    index_name: eb.rexx Government Germany
+    strategy: >-
+      German federal government bonds (Bunds) across maturities — the eurozone's benchmark
+      safe asset. Single-country AAA govvie; pure duration/safe-haven exposure.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [investment-grade, government, germany, safe-haven]
+    as_of: 2026-05
+    source: iShares factsheet (German Bunds)
+    data_complete: false
+    region_weights: {Europe: 1.0}
+    country_weights: {Germany: 1.0}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  us_treasury_1_3:
+    index_name: ICE US Treasury 1-3 Year
+    strategy: >-
+      Short-dated (1-3y) US Treasury notes. Low-duration US-government exposure; USD rate/FX
+      exposure for a EUR investor. Cash-plus in USD terms.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [government, us, short-duration, treasury]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  us_treasury_7_10:
+    index_name: ICE US Treasury 7-10 Year
+    strategy: >-
+      Intermediate (7-10y) US Treasury notes. Meaningful duration; a classic equity
+      diversifier in risk-off periods. USD rate/FX exposure for a EUR investor.
+    asset_class: bond
+    replication: physical
+    factor_tilt: [government, us, intermediate-duration, treasury]
+    as_of: 2026-05
+    source: iShares factsheet
+    data_complete: false
+    region_weights: {North America: 1.0}
+    country_weights: {United States: 1.0}
+    credit_quality: {Investment grade: 1.0}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- ESG / SRI
+  msci_world_sri:
+    index_name: MSCI World SRI Select Reduced Fossil Fuels
+    strategy: >-
+      Best-in-class SRI screen on MSCI World: top ESG-rated developed-market firms per sector,
+      excluding fossil fuels, tobacco, weapons, etc. Concentrated, growth/tech-tilted subset.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [esg, sri, developed-markets, concentrated]
+    as_of: 2026-05
+    source: iShares factsheet (SRI-screened MSCI World)
+    data_complete: false
+    region_weights: {North America: 0.72, Europe: 0.16, Developed Asia-Pacific: 0.12}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  msci_em_sri:
+    index_name: MSCI EM SRI Select Reduced Fossil Fuels
+    strategy: >-
+      Best-in-class SRI screen on MSCI Emerging Markets. Concentrated ESG-leading EM subset;
+      same Taiwan/Korea/China/India axis with exclusions.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [esg, sri, emerging-markets, concentrated]
+    as_of: 2026-05
+    source: iShares factsheet (SRI-screened MSCI EM)
+    data_complete: false
+    region_weights: {Emerging Markets: 1.0}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  ftse_global_all_cap_esg:
+    index_name: FTSE Global All Cap Choice (ESG)
+    strategy: >-
+      All-cap global developed+EM equities with ESG exclusions (Vanguard ESG Global All Cap).
+      Broad market-like exposure minus screened-out industries; low tracking error to
+      All-World.
+    asset_class: equity
+    replication: physical
+    factor_tilt: [esg, global, all-cap]
+    as_of: 2026-05
+    source: Vanguard factsheet (ESG-screened FTSE Global All Cap)
+    data_complete: false
+    region_weights: {North America: 0.62, Europe: 0.15, Developed Asia-Pacific: 0.10,
+                     Emerging Markets: 0.13}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  # ---------------------------------------------------------------- Multi-asset (LifeStrategy)
+  lifestrategy_40:
+    index_name: Vanguard LifeStrategy 40% Equity
+    strategy: >-
+      A fund-of-Vanguard-ETFs holding ~40% global equity (All-World-like) and ~60% global
+      bonds (aggregate, EUR-hedged), auto-rebalanced. Conservative one-fund portfolio.
+    asset_class: multi
+    replication: physical
+    factor_tilt: [multi-asset, conservative]
+    as_of: 2026-05
+    source: Vanguard factsheet (fixed 40/60 equity/bond mandate)
+    data_complete: false
+    asset_mix: {equity: 0.40, bond: 0.60}
+    region_weights: {North America: 0.55, Europe: 0.20, Developed Asia-Pacific: 0.12,
+                     Emerging Markets: 0.08, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  lifestrategy_60:
+    index_name: Vanguard LifeStrategy 60% Equity
+    strategy: >-
+      Fund-of-ETFs holding ~60% global equity and ~40% global bonds (EUR-hedged), auto-
+      rebalanced. Balanced one-fund portfolio.
+    asset_class: multi
+    replication: physical
+    factor_tilt: [multi-asset, balanced]
+    as_of: 2026-05
+    source: Vanguard factsheet (fixed 60/40 equity/bond mandate)
+    data_complete: false
+    asset_mix: {equity: 0.60, bond: 0.40}
+    region_weights: {North America: 0.55, Europe: 0.20, Developed Asia-Pacific: 0.12,
+                     Emerging Markets: 0.08, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  lifestrategy_80:
+    index_name: Vanguard LifeStrategy 80% Equity
+    strategy: >-
+      Fund-of-ETFs holding ~80% global equity and ~20% global bonds (EUR-hedged), auto-
+      rebalanced. Growth-tilted one-fund portfolio.
+    asset_class: multi
+    replication: physical
+    factor_tilt: [multi-asset, growth]
+    as_of: 2026-05
+    source: Vanguard factsheet (fixed 80/20 equity/bond mandate)
+    data_complete: false
+    asset_mix: {equity: 0.80, bond: 0.20}
+    region_weights: {North America: 0.55, Europe: 0.20, Developed Asia-Pacific: 0.12,
+                     Emerging Markets: 0.08, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+  lifestrategy_100:
+    index_name: Vanguard LifeStrategy 100% Equity
+    strategy: >-
+      Fund-of-ETFs holding ~100% global equity (All-World-like), auto-rebalanced. All-equity
+      one-fund portfolio; no bond ballast.
+    asset_class: multi
+    replication: physical
+    factor_tilt: [multi-asset, all-equity]
+    as_of: 2026-05
+    source: Vanguard factsheet (100% equity mandate)
+    data_complete: false
+    asset_mix: {equity: 1.00, bond: 0.00}
+    region_weights: {North America: 0.58, Europe: 0.15, Developed Asia-Pacific: 0.12,
+                     Emerging Markets: 0.10, Other: 0.05}
+    country_weights: {}
+    sector_weights: {}
+    top_holdings: []
+
+# ------------------------------------------------------------------------------------------
+# FUND -> INDEX map. Every ISIN currently in the universe. `index` points into `indices`.
+# Optional per-fund keys: hedged (bool), note.
+funds:
+  # Global equity
+  IE00BK5BQT80: {ticker: VWCE.DE, index: ftse_all_world}
+  IE00B3RBWM25: {ticker: VWRL.L, index: ftse_all_world}
+  IE000716YHJ7: {ticker: FWIA.DE, index: ftse_all_world}
+  IE0003XJA0J9: {ticker: WEBN.DE, index: solactive_gbs_acwi}
+  IE00B3YLTY66: {ticker: SPYI.DE, index: msci_acwi_imi}
+  IE00B44Z5B48: {ticker: SPYY.DE, index: msci_acwi}
+  IE00B6R52259: {ticker: IUSQ.DE, index: msci_acwi}
+  IE00B4L5Y983: {ticker: IWDA.AS, index: msci_world}
+  IE00B0M62Q58: {ticker: IWRD.L, index: msci_world}
+  IE00BKX55T58: {ticker: VHVG.L, index: ftse_developed}
+  IE00BK5BQV03: {ticker: VEVE.L, index: ftse_developed}
+  IE00BJ0KDQ92: {ticker: XDWD.DE, index: msci_world}
+  IE00BFY0GT14: {ticker: SWRD.L, index: msci_world}
+  IE00B60SX394: {ticker: MXWS.L, index: msci_world}
+  # US equity
+  IE00B5BMR087: {ticker: CSPX.L, index: sp500}
+  IE0031442068: {ticker: IUSA.L, index: sp500}
+  IE00BFMXXD54: {ticker: VUAA.L, index: sp500}
+  IE00B3XXRP09: {ticker: VUSA.L, index: sp500}
+  IE00B6YX5C33: {ticker: SPY5.L, index: sp500}
+  IE00B3YCGJ38: {ticker: SPXP.L, index: sp500}
+  IE00B60SX170: {ticker: CSUS.L, index: msci_usa}
+  IE00BKM4H197: {ticker: SUAS.L, index: msci_usa_sri}
+  # Nasdaq & tech
+  IE00B53SZB19: {ticker: CNDX.L, index: nasdaq100}
+  IE0032077012: {ticker: EQQQ.L, index: nasdaq100}
+  IE00BMFKG444: {ticker: XNAS.L, index: nasdaq100}
+  IE00B3WJKG14: {ticker: IITU.L, index: sp500_it}
+  IE00BM67HT60: {ticker: XDWT.DE, index: msci_world_it}
+  # Europe equity
+  IE00B4K48X80: {ticker: SMEA.L, index: msci_europe}
+  LU0908500753: {ticker: MEUD.PA, index: stoxx_europe_600}
+  DE0002635307: {ticker: EXSA.DE, index: stoxx_europe_600}
+  IE00B945VV12: {ticker: VEUR.L, index: ftse_dev_europe}
+  IE00B14X4Q57: {ticker: CEU2.L, index: msci_emu}
+  # Emerging markets
+  IE00BKM4GZ66: {ticker: EIMI.L, index: msci_em_imi}
+  IE00B4L5YC18: {ticker: SEMA.L, index: msci_em}
+  IE00BTJRMP35: {ticker: XMME.DE, index: msci_em}
+  IE00B3VVMM84: {ticker: VFEM.L, index: ftse_emerging}
+  IE00BMG6Z448: {ticker: EMXC.L, index: msci_em_ex_china}
+  # Small cap
+  IE00BF4RFH31: {ticker: WSML.L, index: msci_world_smallcap}
+  IE00BCBJG560: {ticker: ZPRS.DE, index: msci_world_smallcap}
+  IE00B48X4842: {ticker: IEMS.L, index: msci_em_smallcap}
+  # Factor / smart beta
+  IE00BP3QZ825: {ticker: IWMO.L, index: msci_world_momentum}
+  IE00BP3QZ601: {ticker: IWQU.L, index: msci_world_quality}
+  IE00BP3QZB59: {ticker: IWVL.L, index: msci_world_value}
+  IE00BP3QZD73: {ticker: IWSZ.L, index: msci_world_size}
+  IE00B8FHGS14: {ticker: MVOL.L, index: msci_world_minvol}
+  IE00BZ0PKT83: {ticker: FSWD.L, index: msci_world_multifactor}
+  IE00BSPLC298: {ticker: ZPRV.DE, index: msci_usa_smallcap_value}
+  IE00BSPLC413: {ticker: ZPRX.DE, index: msci_europe_smallcap_value}
+  # Dividend
+  IE00B8GKDB10: {ticker: VHYL.L, index: ftse_high_div}
+  IE00B9CQXS71: {ticker: ZPRG.DE, index: sp_global_div_aristocrats}
+  DE000A0F5UH1: {ticker: ISPA.DE, index: stoxx_global_select_div}
+  IE00BYXVGZ48: {ticker: FGQI.L, index: fidelity_global_quality_income}
+  # Sector & thematic
+  IE00B1XNHC34: {ticker: INRG.L, index: sp_clean_energy}
+  IE00BGV5VN51: {ticker: XAIX.DE, index: nasdaq_ai_bigdata}
+  IE00BDVPNG13: {ticker: WTAI.L, index: wisdomtree_ai}
+  IE00BMC38736: {ticker: SMH.L, index: mvis_semiconductor}
+  IE00BYZK4552: {ticker: RBOT.L, index: istoxx_robotics}
+  IE00BYZK4669: {ticker: DGTL.L, index: istoxx_digitalisation}
+  IE00BYZK4776: {ticker: HEAL.L, index: istoxx_healthcare_innovation}
+  IE00B1TXK627: {ticker: IH2O.L, index: sp_global_water}
+  IE00BGL86Z12: {ticker: ECAR.L, index: stoxx_ev}
+  # Regional / country
+  IE00B4L5YX21: {ticker: SJPA.L, index: msci_japan}
+  IE00B52MJY50: {ticker: CPJ1.L, index: msci_pacific_ex_japan}
+  IE00BZCQB185: {ticker: QDV5.DE, index: msci_india}
+  IE00BHZRR147: {ticker: FLXI.L, index: ftse_india}
+  IE00BJ5JPG56: {ticker: 36BZ.DE, index: msci_china}
+  # Bonds
+  IE00BDBRDM35: {ticker: EUNA.DE, index: bloomberg_global_agg, hedged: true}
+  IE00B3F81409: {ticker: AGGG.L, index: bloomberg_global_agg, hedged: false}
+  IE00BG47KH54: {ticker: VGEA.DE, index: bloomberg_global_agg, hedged: true}
+  IE00B4WXJJ64: {ticker: SEGA.L, index: bloomberg_euro_treasury}
+  IE00B3F81R35: {ticker: IEAC.L, index: bloomberg_euro_corp}
+  IE00B66F4759: {ticker: IHYG.L, index: iboxx_euro_hy}
+  IE00B1FZS798: {ticker: IBTM.L, index: us_treasury_7_10}
+  IE00B14X4S71: {ticker: IBTS.L, index: us_treasury_1_3}
+  IE00B0M62X26: {ticker: IBCI.DE, index: euro_inflation_linked}
+  IE00B3VTMJ91: {ticker: CBE3.L, index: euro_govt_1_3}
+  IE00B1FZS913: {ticker: IBGL.AS, index: euro_govt_15_30}
+  DE0006289465: {ticker: EXHA.DE, index: ebrexx_germany}
+  # Gold & commodities
+  IE00B4ND3602: {ticker: SGLN.L, index: gold}
+  IE00B579F325: {ticker: SGLD.L, index: gold}
+  DE000A0S9GB0: {ticker: 4GLD.DE, index: gold}
+  IE00B4NCWG09: {ticker: SSLN.L, index: silver}
+  IE00BDFL4P12: {ticker: ICOM.L, index: diversified_commodity}
+  # Real estate
+  IE00B1FZS350: {ticker: IWDP.L, index: epra_nareit_developed}
+  IE00B0M63284: {ticker: IPRP.L, index: epra_nareit_europe}
+  # Multi-asset
+  IE00BMVB5K07: {ticker: VNGA40.MI, index: lifestrategy_40}
+  IE00BMVB5R75: {ticker: VNGA60.MI, index: lifestrategy_60}
+  IE00BMVB5P51: {ticker: VNGA80.MI, index: lifestrategy_80}
+  IE00BMVB5M21: {ticker: VNGA100.MI, index: lifestrategy_100}
+  # ESG / SRI
+  IE00BYX2JD69: {ticker: SUSW.L, index: msci_world_sri}
+  IE00BNG8L385: {ticker: V3AB.L, index: ftse_global_all_cap_esg}
+  IE00BFNM3P36: {ticker: SUSM.L, index: msci_em_sri}

@@ -10,6 +10,31 @@ version heading on release. This is the authoritative human-readable history of 
 ## [Unreleased]
 
 ### Added
+- **ETF strategy / exposure profiles** (`etf/profiles.py`, pure; `scripts/etf_profiles.yaml`,
+  committed seed): a look-through dataset for the whole universe — every fund maps to the
+  index it tracks, and each index carries a researched breakdown of `strategy`,
+  `region_weights`, `country_weights`, GICS `sector_weights`, `top_holdings`, `factor_tilt`,
+  `replication`, plus `as_of`/`source` and a `data_complete` flag. Bonds use a
+  `credit_quality` bucket instead of equity sectors; multi-asset funds carry an `asset_mix`.
+  Data is verified from justETF / issuer / index-provider factsheets (dated May 2026); where a
+  breakdown wasn't sourced the field is left empty and `data_complete: false` — **no weights
+  are invented** (CLAUDE.md §4). All 91 database instruments are profiled (41 full
+  look-through, 51 partial index/region-level). Stored DRY as an index library + fund→index
+  map; the seed survives a DB rebuild (git-ignored `data/etf_profiles.yaml` overrides if
+  present, mirroring the watchlist/settings pattern).
+- **Exposure-aggregation API** for the upcoming portfolio optimiser:
+  `profiles.portfolio_exposure(weights, dimension)` aggregates a portfolio's weighted
+  region/country/sector/credit exposure, **renormalising over the covered portion and
+  reporting `coverage`** so a constraint is never computed silently on partial data;
+  `asset_class_exposure`, `exposure_gaps` and `coverage_summary` round it out.
+- **Detail page — "Strategy & exposure · look-through"**: per-fund strategy, region/sector/
+  credit bar charts, top-countries and top-holdings tables, tilt tags and a Full/Partial data
+  indicator — theme- and currency-aware, reusing `render_table` and the dataviz palette. The
+  **Data page** gains a universe-level profile-coverage panel (profiled / full / partial).
+- Tests: `tests/test_profiles.py` (loader, hand-computed aggregation, missing-data
+  renormalisation/coverage, seed schema validity with present weights summing ~1.0, and a
+  real-DB check that every stored instrument has a profile or is explicitly pending); plus
+  Detail/Data UI smoke tests in both themes and both currency modes. Suite 129 → 145.
 - **Bond income modelling** (`etf/bonds.py`, pure): turns a stored `close` series + the
   `distributions` table into two side-by-side scenarios — **(a) distributions reinvested**
   (accumulating-equivalent total-return path, cross-checked against the stored `adj_close`)

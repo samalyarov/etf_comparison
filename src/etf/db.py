@@ -105,7 +105,18 @@ CREATE TABLE IF NOT EXISTS data_health (
     notes           TEXT
 );
 
+CREATE TABLE IF NOT EXISTS factor_returns (
+    region    TEXT NOT NULL,   -- factor universe, e.g. Europe (Ken French regional set)
+    frequency TEXT NOT NULL,   -- monthly | daily
+    date      DATE NOT NULL,   -- period-end date (month-end for monthly)
+    factor    TEXT NOT NULL,   -- Mkt-RF | SMB | HML | RMW | CMA | WML | RF
+    value     REAL NOT NULL,   -- period return as a DECIMAL (0.0446 = 4.46%)
+    source    TEXT,
+    PRIMARY KEY (region, frequency, date, factor)
+);
+
 CREATE INDEX IF NOT EXISTS idx_prices_date ON prices(date);
+CREATE INDEX IF NOT EXISTS idx_factor_returns ON factor_returns(region, frequency, date);
 """
 
 
@@ -317,6 +328,39 @@ def upsert_health(conn: sqlite3.Connection, isin: str, report) -> None:
         (isin, report.status, report.rescaled_days, report.despiked_days,
          report.max_move_before, report.max_move_after, report.notes),
     )
+
+
+def upsert_factor_returns(conn: sqlite3.Connection, region: str, frequency: str,
+                          df: pd.DataFrame, source: str) -> int:
+    """Upsert a date x factor matrix of period returns (decimals). Returns rows written.
+
+    ``df`` is indexed by period-end date; each column is a factor (Mkt-RF, SMB, HML, RMW,
+    CMA, WML, RF) carrying the period return as a decimal. NaN cells are skipped so a
+    partially-available factor (e.g. momentum starts later than the 5-factor set) upserts
+    cleanly without fabricating missing observations.
+    """
+    if df is None or df.empty:
+        return 0
+    rows: list[tuple] = []
+    for idx, row in df.iterrows():
+        d = idx.date().isoformat() if hasattr(idx, "date") else str(idx)
+        for factor, val in row.items():
+            fv = _num(val)
+            if fv is None:
+                continue
+            rows.append((region, frequency, d, str(factor), fv, source))
+    if not rows:
+        return 0
+    conn.executemany(
+        """
+        INSERT INTO factor_returns (region, frequency, date, factor, value, source)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(region, frequency, date, factor) DO UPDATE SET
+            value=excluded.value, source=excluded.source
+        """,
+        rows,
+    )
+    return len(rows)
 
 
 def log_ingest(

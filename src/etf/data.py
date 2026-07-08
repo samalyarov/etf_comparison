@@ -111,6 +111,28 @@ def data_health(db_path=DB_PATH) -> pd.DataFrame:
             return pd.DataFrame()
 
 
+def load_factor_returns(region: str = "Europe", frequency: str = "monthly",
+                        db_path=DB_PATH) -> pd.DataFrame:
+    """Return a date x factor matrix of factor returns (decimals), or empty if none stored.
+
+    Columns are the factors present for the requested ``region``/``frequency`` (Mkt-RF, SMB,
+    HML, RMW, CMA, WML, RF). Used by :mod:`etf.factors` for the regression and by the
+    Portfolio page's factor-model section.
+    """
+    with db.connect(db_path) as conn:
+        try:
+            df = pd.read_sql_query(
+                "SELECT date, factor, value FROM factor_returns "
+                "WHERE region = ? AND frequency = ? ORDER BY date",
+                conn, params=[region, frequency], parse_dates=["date"],
+            )
+        except Exception:  # noqa: BLE001 - table may not exist on an old DB
+            return pd.DataFrame()
+    if df.empty:
+        return pd.DataFrame()
+    return df.pivot(index="date", columns="factor", values="value").sort_index()
+
+
 def ingest_log(limit: int = 100, db_path=DB_PATH) -> pd.DataFrame:
     """Return the most recent ingest-log rows."""
     with db.connect(db_path) as conn:

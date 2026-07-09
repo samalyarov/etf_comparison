@@ -9,6 +9,33 @@ version heading on release. This is the authoritative human-readable history of 
 
 ## [Unreleased]
 
+### Changed
+- **Visual redesign — the *Meridian* design system** (`etf/theme.py`, `.streamlit/config.toml`,
+  `app.py` chrome). Re-skins the app from the developer-IDE Tokyo Night palette to a calm,
+  institutional finance direction (after the professional feel of firms like Lowden Financial):
+  a deep **slate-navy** desk (Dark: plane `#0e1620`, card `#141f2b`, ink `#e7edf3`) and a warm
+  **paper** desk (Light: plane `#e9e7e0`, card `#f6f5f1`, ink `#1b2733`), unified by a single
+  muted **teal** accent (Light `#0c6b62` / Dark `#4bc5b5`) with reserved green/red up-down
+  semantics. Both Light and Dark themes and the Native/EUR currency toggle keep working; all
+  native-widget text fixes and themed HTML tables are preserved.
+  - **Accessibility:** every text/UI token pair meets **WCAG AA** contrast in both themes —
+    the Light `accent`, `good`, and `muted` tokens were tuned down until links, gain figures,
+    and captions clear 4.5:1 on the paper surfaces; Dark already cleared AA throughout.
+  - **Chrome:** a refined masthead (rising-line product mark + wordmark), a signature **meridian
+    rule**, **tabular figures** on metrics/tables (a research ledger aligns its numbers), and
+    accessible keyboard focus rings.
+  - **Attribution:** the tool is credited to **Sam Maliarov** in the header byline and a
+    persistent footer, each linking to his LinkedIn (`linkedin.com/in/semyon-malyarov`). Text +
+    monogram only, no photograph.
+  - **Charts:** the CVD-safe categorical series palettes are unchanged and stay in-band against
+    the new surfaces (the slate card `#141f2b` and warm card `#f6f5f1` sit at effectively the
+    same luminance as the previous surfaces they were validated on); any series-vs-series
+    adjacency is mitigated as before by legends / direct labels / tables. The diverging ramps
+    keep their red/blue poles with a neutral midpoint tuned to each surface.
+  - Tests: added attribution/LinkedIn-present assertions and both-themes token-invariant checks
+    to `tests/test_app.py`; existing UI/theme smoke tests re-run green in both themes and both
+    currency modes.
+
 ### Added
 - **Portfolio risk engine** (`etf/risk.py`, pure — numpy/pandas only): formal downside-risk
   layer on a built blend's realised return distribution, complementing the forward scenario fan

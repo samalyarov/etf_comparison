@@ -101,6 +101,42 @@ def test_detail_profile_section_both_themes_and_currencies(theme, currency):
     assert not at.exception, f"Detail profile ({theme}/{currency}) raised: {at.exception}"
 
 
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+@pytest.mark.parametrize("currency", ["Native", "EUR"])
+def test_portfolio_optimizer_both_themes_and_currencies(theme, currency):
+    """The Optimiser section (weights, frontier, exposure) renders in both themes/currencies."""
+    at = _run("Portfolio", theme=theme, currency=currency)
+    assert not at.exception, f"Portfolio optimizer ({theme}/{currency}) raised: {at.exception}"
+
+
+def test_portfolio_optimizer_objective_and_constraints_interaction():
+    """Switching to min-vol and adding a per-fund cap + sector cap re-solves cleanly."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    at.selectbox(key="opt_obj").set_value("Min volatility").run()
+    assert not at.exception, at.exception
+    at.number_input(key="opt_maxw").set_value(40).run()
+    assert not at.exception, at.exception
+    at.number_input(key="opt_sector").set_value(30).run()
+    assert not at.exception, at.exception
+
+
+def test_portfolio_optimizer_infeasible_is_graceful():
+    """An impossible per-fund cap (10% across few funds) shows a message, never crashes."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    at.number_input(key="opt_maxw").set_value(10).run()
+    assert not at.exception, at.exception  # infeasible handled, no exception leaks
+
+
+def test_portfolio_optimizer_shorting_toggle():
+    """Enabling shorting (gross cap) re-solves without error."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    at.selectbox(key="opt_lev").set_value("Allow shorting (gross cap)").run()
+    assert not at.exception, at.exception
+
+
 def test_data_page_profile_coverage():
     """The Data-page profile-coverage indicator renders."""
     at = _run("Data")

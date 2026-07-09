@@ -12,13 +12,14 @@ from __future__ import annotations
 import calendar
 import os
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from etf import (bonds, costs, data, factors, fx, metrics, portfolio, profiles, projection,
-                 sentiment, settings, strategy, tax, theme)
+from etf import (bonds, costs, data, factors, fx, metrics, optimizer, portfolio, profiles,
+                 projection, sentiment, settings, strategy, tax, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -1255,8 +1256,218 @@ def render_portfolio():
         if unknown:
             st.caption("Ignored unrecognised tickers: " + ", ".join(unknown))
 
+    render_optimizer(selected)
     render_factor_model()
     render_bond_income(selected)
+
+
+def _sector_region_labels(isins: list[str], dimension: str) -> list[str]:
+    """Distinct exposure labels present across a candidate set for a dimension (for caps)."""
+    seen: list[str] = []
+    for i in isins:
+        prof = profiles.get_profile(i)
+        if not prof:
+            continue
+        for k in prof.weights(dimension):
+            if k not in seen:
+                seen.append(k)
+    return seen
+
+
+def render_optimizer(default_selected: list[str]):
+    """Constrained mean-variance optimiser: max-Sharpe / min-vol under leverage, turnover and
+    sector/region/asset-class exposure limits, with the efficient frontier and a coverage-aware
+    exposure breakdown. Reuses the profiles look-through for the exposure constraints."""
+    st.markdown('<p class="section-label">Optimiser · constrained max-Sharpe / min-volatility'
+                '</p>', unsafe_allow_html=True)
+    st.caption("Mean-variance optimisation (Ledoit-Wolf covariance, cvxpy solver). "
+               "**Max-Sharpe is highly sensitive to the expected-return estimate** "
+               "(Michaud's *error-maximisation*): historical means are a weak forecast, so "
+               "treat the tangency weights as one input to judgement — the frontier and "
+               "min-volatility end are far more stable.")
+
+    labels = st.multiselect("Candidate funds", list(isin_by_label.keys()),
+                            default=[label_by_isin[i] for i in default_selected
+                                     if i in label_by_isin],
+                            key="opt_candidates")
+    cand = [isin_by_label[lbl] for lbl in labels]
+    if len(cand) < 2:
+        st.info("Pick at least two candidate funds to optimise across.")
+        return
+
+    c1, c2, c3, c4 = st.columns(4)
+    obj_label = c1.selectbox("Objective", ["Max Sharpe (tangency)", "Min volatility"],
+                             key="opt_obj")
+    objective = "max_sharpe" if obj_label.startswith("Max") else "min_volatility"
+    ret_label = c2.selectbox("Expected returns", ["Mean historical", "EMA (recent-weighted)"],
+                             key="opt_ret",
+                             help="Both are backward-looking estimates — see the caveat above.")
+    ret_method = "ema_historical" if ret_label.startswith("EMA") else "mean_historical"
+    lev = c3.selectbox("Leverage", ["Long-only", "Allow shorting (gross cap)"], key="opt_lev")
+    long_only = lev == "Long-only"
+    max_w_pct = c4.number_input("Max per fund (%)", min_value=0, max_value=100, value=0, step=5,
+                                key="opt_maxw", help="0 = no per-fund cap.")
+
+    g1, g2, g3, g4 = st.columns(4)
+    gross = g1.number_input("Gross cap Σ|w| (×)", min_value=1.0, max_value=3.0, value=1.5,
+                            step=0.1, key="opt_gross", disabled=long_only,
+                            help="Total gross exposure when shorting is allowed.")
+    max_sector = g2.number_input("Max any sector (%)", min_value=0, max_value=100, value=0,
+                                 step=5, key="opt_sector", help="0 = off. Uses look-through.")
+    max_region = g3.number_input("Max any region (%)", min_value=0, max_value=100, value=0,
+                                 step=5, key="opt_region", help="0 = off. Uses look-through.")
+    min_bonds = g4.number_input("Min bonds (%)", min_value=0, max_value=100, value=0, step=5,
+                                key="opt_bonds", help="0 = off. Asset-class floor.")
+
+    # Optional turnover limit vs pasted current holdings.
+    current_weights: dict[str, float] | None = None
+    turnover_limit: float | None = None
+    with st.expander("Turnover limit (optional) — anchor to current holdings"):
+        raw_pos = st.text_area("Current holdings (`TICKER, value`)", height=90,
+                               key="opt_positions",
+                               placeholder="VWCE.DE, 6000\nEIMI.L, 2000\nAGGH.DE, 2000")
+        parsed = portfolio.parse_positions(raw_pos)
+        if parsed:
+            t2i = {t: i for i, t in ticker_by_isin.items()}
+            cw = {t2i[s]: v for s, v in parsed.items() if s in t2i}
+            if cw:
+                current_weights = cw
+                turnover_limit = st.slider("Max turnover ‖w − w₀‖₁", 0.0, 2.0, 0.4, 0.05,
+                                           key="opt_turnover",
+                                           help="L1 distance from current weights (buy+sell).")
+
+    # Build exposure limits from the look-through profiles.
+    exposure_limits: list[optimizer.ExposureLimit] = []
+    if max_sector > 0:
+        for lbl in _sector_region_labels(cand, "sector"):
+            exposure_limits.append(optimizer.ExposureLimit("sector", lbl, upper=max_sector / 100))
+    if max_region > 0:
+        for lbl in _sector_region_labels(cand, "region"):
+            exposure_limits.append(optimizer.ExposureLimit("region", lbl, upper=max_region / 100))
+    if min_bonds > 0:
+        exposure_limits.append(optimizer.ExposureLimit("asset_class", "bond",
+                                                       lower=min_bonds / 100))
+
+    con = optimizer.OptConstraints(
+        long_only=long_only,
+        gross_leverage=None if long_only else float(gross),
+        min_weight=None if long_only else -float(gross),
+        max_weight=(max_w_pct / 100) if max_w_pct > 0 else None,
+        turnover_limit=turnover_limit,
+        exposure_limits=tuple(exposure_limits),
+    )
+
+    mat = pd.DataFrame({i: px(i) for i in cand})
+    mat = mat.dropna(how="all", axis=1)
+    if mat.shape[1] < 2:
+        st.warning("Not enough overlapping price history to optimise these funds.")
+        return
+
+    rf = float(SETTINGS.get("risk_free", 2.0)) / 100.0
+    res = optimizer.optimize_portfolio(mat, objective=objective, risk_free_rate=rf,
+                                       current_weights=current_weights, constraints=con,
+                                       return_method=ret_method, with_frontier=True)
+    if not res.success:
+        st.warning(f"⚠️ {res.message} Loosen a constraint (e.g. raise a cap, lower a floor, or "
+                   "raise the turnover budget) and try again.")
+        return
+
+    # --- Headline stats vs equal-weight ---
+    aligned = optimizer._clean_prices(mat)
+    assets = list(aligned.columns)
+    mu = optimizer.expected_returns_vector(aligned, ret_method).reindex(assets).to_numpy()
+    S = optimizer.covariance_matrix(aligned).reindex(index=assets, columns=assets).to_numpy()
+    eqw = np.full(len(assets), 1.0 / len(assets))
+    eq_ret, eq_vol, eq_sharpe = optimizer._portfolio_stats(eqw, mu, S, rf)
+
+    k = st.columns(4)
+    k[0].metric("Expected return", pct(res.expected_return),
+                help="Annualised, on the selected expected-return estimate.")
+    k[1].metric("Volatility", pct(res.volatility))
+    k[2].metric("Sharpe", "—" if pd.isna(res.sharpe) else f"{res.sharpe:.2f}",
+                delta=None if pd.isna(res.sharpe) or pd.isna(eq_sharpe)
+                else f"{res.sharpe - eq_sharpe:+.2f} vs equal-wt")
+    k[3].metric("Funds used", f"{len(res.weights)} / {len(assets)}")
+    st.caption(f"Risk-free {rf:.2%} (from settings) · "
+               f"{'EUR' if EUR_MODE else 'native currencies (mixed)'} · "
+               f"objective: {obj_label.lower()} · returns: {ret_label.lower()}. "
+               f"Equal-weight benchmark: return {pct(eq_ret)}, vol {pct(eq_vol)}, "
+               f"Sharpe {eq_sharpe:.2f}.")
+    if res.binding:
+        st.caption("**Binding constraints:** " + "; ".join(res.binding))
+
+    # --- Optimal weights (bar + table) vs equal-weight ---
+    a, b = st.columns([3, 2])
+    with a:
+        st.markdown('<p class="section-label">Optimal weights</p>', unsafe_allow_html=True)
+        order = sorted(res.weights, key=lambda i: res.weights[i], reverse=True)
+        wf = go.Figure()
+        wf.add_trace(go.Bar(x=[ticker_by_isin.get(i, i) for i in order],
+                            y=[res.weights[i] for i in order],
+                            marker_color=[T.series[0] if res.weights[i] >= 0 else T.color(3)
+                                          for i in order]))
+        sf(wf, height=300, showlegend=False)
+        wf.update_yaxes(tickformat=".0%", title="Weight")
+        st.plotly_chart(wf, width="stretch")
+    with b:
+        st.markdown('<p class="section-label">Allocation</p>', unsafe_allow_html=True)
+        wrows = [{"Fund": ticker_by_isin.get(i, i), "Weight": res.weights[i],
+                  "Equal-wt": 1.0 / len(assets)} for i in order]
+        render_table(pd.DataFrame(wrows), hide_index=True,
+                     fmt={"Weight": "{:.1%}", "Equal-wt": "{:.1%}"})
+
+    # --- Efficient frontier with tangency / min-vol / equal-weight / assets ---
+    st.markdown('<p class="section-label">Efficient frontier</p>', unsafe_allow_html=True)
+    fr = res.frontier
+    ff = go.Figure()
+    if fr is not None and not fr.empty:
+        ff.add_trace(go.Scatter(x=fr["volatility"], y=fr["ret"], name="Frontier",
+                                mode="lines", line=dict(color=T.series[0], width=2)))
+    # Individual candidate assets.
+    ff.add_trace(go.Scatter(x=np.sqrt(np.diag(S)), y=mu, mode="markers+text",
+                            text=[ticker_by_isin.get(i, i) for i in assets],
+                            textposition="top center", textfont=dict(size=9, color=T.ink2),
+                            name="Funds", marker=dict(size=8, color=T.ink2,
+                                                      line=dict(width=1, color=T.surface))))
+    ff.add_trace(go.Scatter(x=[eq_vol], y=[eq_ret], mode="markers", name="Equal-weight",
+                            marker=dict(size=13, symbol="diamond", color=T.color(2),
+                                        line=dict(width=1.5, color=T.surface))))
+    ff.add_trace(go.Scatter(x=[res.volatility], y=[res.expected_return], mode="markers",
+                            name="Optimal" + (" (tangency)" if objective == "max_sharpe"
+                                              else " (min-vol)"),
+                            marker=dict(size=16, symbol="star", color=T.color(3),
+                                        line=dict(width=1.5, color=T.surface))))
+    sf(ff, height=380, hovermode="closest")
+    ff.update_xaxes(title="Volatility (ann.)", tickformat=".0%")
+    ff.update_yaxes(title="Expected return (ann.)", tickformat=".0%")
+    st.plotly_chart(ff, width="stretch")
+
+    # --- Resulting exposure breakdown + coverage ---
+    st.markdown('<p class="section-label">Resulting exposure · look-through</p>',
+                unsafe_allow_html=True)
+    dims = [d for d in ("asset_class", "sector", "region") if d in res.exposures]
+    ecols = st.columns(len(dims)) if dims else []
+    for col, dim in zip(ecols, dims):
+        rep = res.exposures[dim]
+        with col:
+            title = dim.replace("_", " ").title()
+            if not rep.exposure:
+                st.caption(f"**{title}** — no look-through data.")
+                continue
+            items = list(rep.exposure.items())[:8]
+            bar = go.Figure(go.Bar(x=[v for _, v in items], y=[k for k, _ in items],
+                                   orientation="h", marker_color=T.series[0]))
+            sf(bar, height=240, showlegend=False)
+            bar.update_xaxes(tickformat=".0%")
+            bar.update_yaxes(autorange="reversed")
+            bar.update_layout(title=dict(text=f"{title} · coverage {rep.coverage:.0%}",
+                                         font=dict(size=12, color=T.ink2)))
+            st.plotly_chart(bar, width="stretch")
+    st.caption("Exposure is the **absolute** portfolio weight per category from the fund "
+               "look-through (denominator = whole portfolio); *coverage* is the share of "
+               "portfolio weight whose funds carried data for that dimension. Caps act on this "
+               "covered exposure, so a low-coverage dimension is flagged, never silently "
+               "constrained on partial data.")
 
 
 def _factor_sleeves() -> list[tuple[str, str]]:

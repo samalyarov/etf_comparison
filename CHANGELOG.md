@@ -10,6 +10,43 @@ version heading on release. This is the authoritative human-readable history of 
 ## [Unreleased]
 
 ### Added
+- **Constrained portfolio optimiser** (`etf/optimizer.py`, pure numerics): mean-variance
+  optimisation with real-world constraints, solved with **cvxpy** using **PyPortfolioOpt**
+  estimators (added `pyportfolioopt` to `pyproject.toml`; installs cleanly on Windows/py3.13
+  and, via `pip install -e ".[dev]"`, on CI).
+  - `optimize_portfolio(prices, *, objective, risk_free_rate, current_weights, constraints,
+    return_method, with_frontier)` → `OptimizeResult` with optimal weights, expected
+    return/vol/Sharpe, the realised **exposure breakdown + coverage**, which constraints are
+    **binding**, and the solver status. Objectives: `max_sharpe` (tangency) and
+    `min_volatility`; plus `efficient_frontier(...)` for context.
+  - **Constraints** (`OptConstraints`): leverage — long-only (`w≥0, Σw=1`) *or* a gross-exposure
+    cap `Σ|w| ≤ L` with shorting bounds (toggle); **turnover** `‖w − current_weights‖₁ ≤ τ`;
+    per-asset min/max weight bounds; L2 (ridge) diversification; and **sector / region /
+    asset-class exposure limits** (`ExposureLimit`, caps *and* floors).
+  - **Method**: max-Sharpe is solved via the **Charnes-Cooper transformation** (`y = w/κ`) so
+    every constraint's constants are scaled by `κ` — crucially the turnover anchor becomes
+    `‖y − κ·w_prev‖₁ ≤ τ·κ`. This fixes a real PyPortfolioOpt limitation: its `max_sharpe`
+    leaves `w_prev` unscaled and returns *infeasible* on a turnover constraint. Covariance is
+    **Ledoit-Wolf shrinkage**; expected returns are mean-historical (default) or
+    exponentially-weighted, with a prominent **estimation-sensitivity caveat** (Michaud's
+    error-maximisation) in the module and UI.
+  - **Exposure constraints use the profiles look-through** (`profiles.portfolio_exposure`
+    basis): the exposure is a linear map `A·w` built from per-fund category shares; a fund with
+    no look-through data contributes a **zero column** (not counted, never assumed), and every
+    constrained dimension reports its **coverage** so partial-profile funds are surfaced, not
+    silently constrained on incomplete data. Caps act on absolute covered exposure (conservative
+    under partial coverage).
+  - **Portfolio page** gains an **Optimiser** section: candidate set, objective, leverage /
+    shorting, per-fund cap, per-sector/region caps, min-bonds floor, and an optional
+    turnover limit anchored to pasted holdings. Shows optimal weights vs equal-weight, the
+    **efficient frontier** with the tangency / min-vol / equal-weight / per-fund points, the
+    resulting exposure breakdown + coverage, and binding constraints. Infeasible sets show a
+    clear message (no crash); currency- and theme-aware; respects the risk-free-rate setting.
+  - Tests: `tests/test_optimizer.py` (19) — 2-asset tangency vs closed form; every constraint
+    provably respected (leverage, turnover, bounds, sector/asset-class limits); infeasible
+    returns a clean status with no exception; coverage < 1 on partial profiles; frontier
+    monotonicity; solver determinism. UI smoke (7) for the new section in both themes and both
+    currencies, incl. the infeasible and shorting paths. Suite 171 → 197; ruff clean.
 - **Factor-model portfolio builder** (`etf/factors.py`, pure): two complementary views plus a
   forward scenario modeller for a factor-ETF blend.
   - *(B) Regression-estimated exposures* — `factor_exposures(portfolio_returns, factor_returns)`

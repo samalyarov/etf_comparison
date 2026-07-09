@@ -1,13 +1,13 @@
-# Streamlit base theme = Dark (Tokyo Night), the app's default in-app theme.
+# Streamlit base theme = Dark (Meridian "Slate"), the app's default in-app theme.
 # The in-app Light/Dark toggle reskins backgrounds, cards, charts, widgets, and tables at
 # runtime. Tables are rendered as themed HTML (not st.dataframe) so they follow both modes.
 
 [theme]
 base = "dark"
-primaryColor = "#7aa2f7"              # Tokyo Night blue — accents, active nav, buttons
-backgroundColor = "#16161e"           # page plane
-secondaryBackgroundColor = "#1a1b26"  # cards, inputs
-textColor = "#c0caf5"                 # foreground
+primaryColor = "#4bc5b5"              # Meridian teal — accents, active nav, buttons
+backgroundColor = "#0e1620"           # page plane (deep slate-navy)
+secondaryBackgroundColor = "#141f2b"  # cards, inputs
+textColor = "#e7edf3"                 # foreground (cool near-white)
 font = "sans serif"
 
 [server]

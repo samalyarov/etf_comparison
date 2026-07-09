@@ -20,8 +20,8 @@ live in a local, git-ignored `brain/` knowledge base.
   error, information ratio, up/down capture), **rolling-window return distributions**, a
   **regime/stress lens**, and an all-in **cost & tax** model (IBKR commissions, tracking
   difference, spread/FX, EU dividend-tax drag, domicile notes) — all total-return basis.
-- **Presents** it in a themed **Streamlit** UI (switchable **Light / Dark** — a Tokyo Night
-  palette) with a top nav and seven pages:
+- **Presents** it in a themed **Streamlit** UI (switchable **Light / Dark** — the *Meridian*
+  slate-navy / warm-paper palette with a teal accent) with a top nav and seven pages:
   - **Recommended** — selectable ranking (return / CAGR / CAGR-after-TER / Sharpe / Sortino
     / lowest drawdown), 5/10/15y lookback, per-category winners, and a market-context strip
     (US 10Y yield, VIX).
@@ -83,7 +83,7 @@ flowchart TD
         RAW["Raw SQL / pandas<br/>(any DB client)"]
     end
 
-    THEME["theme.py<br/>Light / Dark (Tokyo Night)<br/>validated palette"]
+    THEME["theme.py<br/>Light / Dark (Meridian)<br/>validated palette"]
 
     WL --> ORC
     Y --> AD

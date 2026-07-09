@@ -19,7 +19,7 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 
 from etf import (bonds, costs, data, factors, fx, metrics, optimizer, portfolio, profiles,
-                 projection, sentiment, settings, strategy, tax, theme)
+                 projection, risk, sentiment, settings, strategy, tax, theme)
 from etf.config import DB_PATH
 
 st.set_page_config(page_title="ETF Comparison", layout="wide")
@@ -1256,9 +1256,124 @@ def render_portfolio():
         if unknown:
             st.caption("Ignored unrecognised tickers: " + ", ".join(unknown))
 
+    render_risk(selected, weights, mat)
     render_optimizer(selected)
     render_factor_model()
     render_bond_income(selected)
+
+
+def render_risk(selected: list[str], weights: dict[str, float], mat: pd.DataFrame):
+    """Risk section: VaR/CVaR (method × confidence), historical crash-window stress tests, and
+    contribution-to-risk per holding. Reuses :mod:`etf.risk` (pure); theme/currency-aware."""
+    st.markdown('<p class="section-label">Risk · Value-at-Risk, stress tests & contribution to '
+                'risk</p>', unsafe_allow_html=True)
+    st.caption("Formal downside risk on the blend's realised return distribution. **VaR is a "
+               "threshold, not a worst case** — it says nothing about how bad the tail gets "
+               "beyond it, so CVaR (the tail's average loss) is shown alongside. Historical "
+               "makes no distribution assumption; parametric assumes a shape; Cornish-Fisher "
+               "corrects for fat tails. All are estimates of the *past* distribution, not a "
+               "forecast.")
+
+    rc1, rc2 = st.columns([1, 1])
+    horizon = rc1.selectbox("Horizon", ["1 day", "1 week (5d)", "1 month (21d)"], index=0,
+                            key="risk_horizon",
+                            help="Per-period figures scaled by the Basel square-root-of-time "
+                                 "rule (assumes i.i.d. returns).")
+    h_days = {"1 day": 1, "1 week (5d)": 5, "1 month (21d)": 21}[horizon]
+    value = rc2.number_input(f"Portfolio value ({'EUR' if EUR_MODE else 'native'})",
+                             min_value=0, value=10000, step=1000, key="risk_value",
+                             help="Translates the VaR percentage into a money loss figure.")
+
+    # --- VaR / CVaR table (method × confidence) ---
+    summ = risk.var_summary(mat, weights, confidences=(0.95, 0.99), horizon=h_days)
+    if summ.empty:
+        st.warning("Not enough shared price history across the selected funds to measure VaR.")
+        return
+    disp = summ.copy()
+    disp.insert(0, "Method", disp.index)
+    render_table(disp, hide_index=True,
+                 fmt={c: "{:.2%}" for c in summ.columns})
+    var95 = float(summ.loc[risk.METHOD_HISTORICAL, "VaR 95%"])
+    cvar95 = float(summ.loc[risk.METHOD_HISTORICAL, "CVaR 95%"])
+    st.caption(f"Read: over **{horizon}**, a 1-in-20 (95%) loss is about "
+               f"**{pct(var95)}** (≈ {money(var95 * value)}); when it is breached the average "
+               f"loss (CVaR) is **{pct(cvar95)}** (≈ {money(cvar95 * value)}) — historical "
+               "basis. Positive numbers are losses.")
+
+    # --- Contribution to risk (Euler decomposition) ---
+    cr = risk.component_risk(mat, weights, confidence=0.95)
+    a, b = st.columns([2, 3])
+    with a:
+        if cr is not None and cr.portfolio_vol > 0:
+            frame = cr.to_frame(labels=ticker_by_isin)
+            order = frame.sort_values("Risk share", ascending=True)
+            cfig = go.Figure()
+            cfig.add_trace(go.Bar(
+                x=order["Risk share"], y=order["Fund"], orientation="h",
+                marker_color=T.series[0],
+                text=[f"{v:.0%}" for v in order["Risk share"]], textposition="auto"))
+            sf(cfig, height=280)
+            cfig.update_xaxes(title="Share of portfolio risk", tickformat=".0%")
+            cfig.update_layout(showlegend=False)
+            st.plotly_chart(cfig, width="stretch")
+    with b:
+        if cr is not None and cr.portfolio_vol > 0:
+            st.markdown('<p class="section-label">Contribution to risk per holding</p>',
+                        unsafe_allow_html=True)
+            render_table(cr.to_frame(labels=ticker_by_isin), hide_index=True,
+                         fmt={"Weight": "{:.0%}", "Marginal VaR": "{:.2%}",
+                              "Component VaR": "{:.2%}", "Risk share": "{:.0%}"})
+            st.caption("Component VaR is each fund's *coherent* share of portfolio VaR (Euler "
+                       "allocation) — it sums to the total, so a small weight in a volatile fund "
+                       "can still be a large risk share. Marginal VaR is the risk added per unit "
+                       "of weight.")
+
+    # --- Historical crash-window stress tests ---
+    st.markdown('<p class="section-label">Historical stress tests · named crash windows</p>',
+                unsafe_allow_html=True)
+    results = risk.stress_tests(mat, weights)
+    covered = [r for r in results if r.covered]
+    uncovered = [r for r in results if not r.covered]
+    if covered:
+        sfig = go.Figure()
+        sfig.add_trace(go.Bar(
+            x=[r.label for r in covered], y=[r.drawdown for r in covered],
+            marker_color=T.bad,
+            text=[f"{r.drawdown:.0%}" for r in covered], textposition="outside"))
+        sf(sfig, height=320)
+        sfig.update_yaxes(title="Portfolio drawdown", tickformat=".0%")
+        sfig.update_layout(showlegend=False)
+        st.plotly_chart(sfig, width="stretch")
+
+        srows = []
+        for r in covered:
+            srows.append({
+                "Crash": r.label,
+                "Window": f"{r.start} → {r.end}",
+                "Drawdown": r.drawdown,
+                "Worst day": r.worst_day,
+                "Window return": r.window_return,
+                "Recovery": ("not yet" if r.recovery_days is None
+                             else f"{r.recovery_days // 30} mo" if r.recovery_days >= 30
+                             else f"{r.recovery_days} d"),
+            })
+        render_table(pd.DataFrame(srows), hide_index=True,
+                     fmt={"Drawdown": "{:.1%}", "Worst day": "{:.1%}",
+                          "Window return": "{:.1%}"})
+    else:
+        st.caption("None of the named crash windows are covered by these funds' shared history.")
+    if uncovered:
+        st.caption("No data (funds too young) for: "
+                   + ", ".join(r.label for r in uncovered) + ".")
+
+    # Reuse the blend's own worst historical drawdown+recovery (monthly) as an on-record anchor.
+    blend = portfolio.blend_index(mat, weights, rebalance="Q")
+    if not blend.empty:
+        _seq, dd, wlen = factors.worst_crash_window(projection.monthly_returns(blend))
+        if wlen > 0:
+            st.caption(f"Worst on record for this exact blend: a **{dd:.0%}** peak-to-trough "
+                       f"drawdown-and-recovery spanning **{wlen} months** (monthly basis). "
+                       "Stress tests replay real history; they are not a ceiling on future loss.")
 
 
 def _sector_region_labels(isins: list[str], dimension: str) -> list[str]:

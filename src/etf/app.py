@@ -172,9 +172,17 @@ if "theme" not in st.session_state:
 
 left, mid, right = st.columns([3, 1, 1])
 with left:
-    st.markdown('<p class="app-title">ETF Comparison</p>'
-                '<p class="app-sub">Local research desk for UCITS ETFs · '
-                f'{n_etfs} funds across {n_cats} categories</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="masthead">'
+        '<span class="masthead-mark"><svg width="18" height="18" viewBox="0 0 18 18" '
+        'fill="none" aria-hidden="true"><path d="M2 12 L6 8 L10 10 L16 3" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round"/></svg></span>'
+        '<div><p class="app-title">ETF Comparison</p>'
+        f'<p class="app-sub">Local research desk for UCITS ETFs · {n_etfs} funds across '
+        f'{n_cats} categories · by <a href="https://www.linkedin.com/in/semyon-malyarov/" '
+        'target="_blank" rel="noopener">Sam Maliarov</a></p></div></div>',
+        unsafe_allow_html=True)
 with mid:
     _cur_default = ["Native", "EUR"].index(SETTINGS.get("currency", "Native"))
     cur_choice = st.radio("Currency", ["Native", "EUR"], horizontal=True, index=_cur_default,
@@ -198,6 +206,7 @@ if SETTINGS.get("theme") != st.session_state.theme or SETTINGS.get("currency") !
 
 T = theme.THEMES[st.session_state.theme]
 st.markdown(theme.css(T), unsafe_allow_html=True)
+st.markdown('<hr class="meridian-rule">', unsafe_allow_html=True)
 
 
 def sf(fig, **kw):
@@ -1912,3 +1921,16 @@ PAGES = {"Recommended": render_recommended, "Compare": render_compare,
          "Screener": render_screener, "Portfolio": render_portfolio,
          "Detail": render_detail, "Strategy": render_strategy, "Data": render_data}
 PAGES.get(page, render_recommended)()
+
+
+# --------------------------------------------------------------------------- footer
+# Persistent attribution — rendered on every page. Text + link only, no photograph.
+st.markdown(
+    '<div class="app-footer">'
+    '<span class="foot-mark">SM</span>'
+    '<span><span class="foot-by">Built by Sam Maliarov</span> · '
+    '<a href="https://www.linkedin.com/in/semyon-malyarov/" target="_blank" '
+    'rel="noopener">LinkedIn</a></span>'
+    '<span class="foot-note">Local UCITS-ETF research tool · not investment advice · '
+    'past performance does not predict future returns.</span>'
+    '</div>', unsafe_allow_html=True)

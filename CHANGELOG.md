@@ -10,6 +10,46 @@ version heading on release. This is the authoritative human-readable history of 
 ## [Unreleased]
 
 ### Added
+- **Portfolio risk engine** (`etf/risk.py`, pure — numpy/pandas only): formal downside-risk
+  layer on a built blend's realised return distribution, complementing the forward scenario fan
+  in `etf/factors.py`.
+  - **Value-at-Risk + Conditional VaR / Expected Shortfall** at 95% and 99% by **three
+    independent methods**, reported as positive loss magnitudes with drift-aware **√t horizon
+    scaling** (Basel square-root-of-time rule; documented i.i.d. assumption): **Historical**
+    (empirical tail quantile, no distribution assumption); **Parametric (Gaussian)** with the
+    closed-form normal ES `σ·φ(z)/(1−c) − μ`; a **Cornish-Fisher** fat-tail variant (modified VaR
+    + Boudt-Peterson-Croux modified ES) that adjusts for sample skew and excess kurtosis and
+    reduces **exactly** to the Gaussian forms at zero skew/kurtosis; and **Monte-Carlo**
+    (seedable → deterministic) — univariate normal/bootstrap, or a **multivariate-normal** fit
+    across funds preserving their covariance. Cornish-Fisher returns `NaN` (never a fabricated
+    number) when the expansion leaves its domain of validity on the tail-to-median interval the
+    VaR actually traverses (Maillard 2012), rather than gating on over-strict global
+    monotonicity. `var_summary(...)` builds the method × confidence table.
+  - **Contribution-to-risk** (`component_risk`) — marginal & component VaR/volatility per holding
+    via the **Euler allocation**: `σ_p = √(wᵀΣw)` splits exactly into additive component vols
+    that **sum to portfolio vol** (and, times `z_c`, to the parametric portfolio VaR); a small
+    weight in a wild fund is correctly surfaced as a large risk share.
+  - **Historical stress tests** (`stress_tests`) — replay of seven documented, dated crash
+    windows against the portfolio's *current* target weights using real `adj_close` history:
+    **GFC 2008** (2007-10-09→2009-03-09), **Euro crisis 2011** (2011-07-07→2011-10-04),
+    **China/oil 2015-16** (2015-08-10→2016-02-11), **2018 Q4 selloff** (2018-09-20→2018-12-24),
+    **COVID 2020** (2020-02-19→2020-03-23), **2022 rate shock** (2022-01-03→2022-10-12) and
+    **SVB banking 2023** (2023-02-02→2023-03-13). Each reports portfolio drawdown, worst single
+    day, window return and time-to-recovery; windows a portfolio has no data for (young funds)
+    are reported **uncovered** with `NaN` losses — coverage is explicit, never fabricated.
+  - **Portfolio page** gains a **Risk** section: the VaR/CVaR table (method × confidence) with a
+    horizon selector and money-value translation, a contribution-to-risk chart + table, and a
+    stress-scenario drawdown bar chart with recovery info. Honest caveats throughout (VaR is a
+    threshold not a worst case; parametric assumes a shape; all are estimates of the *past*).
+    Currency- and theme-aware; single-fund and thin-history blends handled gracefully.
+  - Tests: `tests/test_risk.py` — the three methods agree on a synthetic Normal within
+    tolerance and match the closed-form Gaussian VaR; historical VaR = empirical quantile;
+    CVaR ≥ VaR; Cornish-Fisher reduces to Gaussian at zero moments, widens the tail for
+    left-skewed fat tails, and returns NaN out of domain; √t scaling exact; component risk sums
+    to the total; stress windows select the right dates/drawdown on a crafted crash and skip
+    uncovered windows; Monte-Carlo deterministic under a seed. Plus UI smoke (both themes/
+    currencies + horizon interaction) and data-integrity invariants (crash windows dated, ordered
+    and lookahead-free; no fabricated losses on uncovered windows). Suite 197 → 221; ruff clean.
 - **Constrained portfolio optimiser** (`etf/optimizer.py`, pure numerics): mean-variance
   optimisation with real-world constraints, solved with **cvxpy** using **PyPortfolioOpt**
   estimators (added `pyportfolioopt` to `pyproject.toml`; installs cleanly on Windows/py3.13

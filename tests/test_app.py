@@ -103,6 +103,23 @@ def test_detail_profile_section_both_themes_and_currencies(theme, currency):
 
 @pytest.mark.parametrize("theme", ["Light", "Dark"])
 @pytest.mark.parametrize("currency", ["Native", "EUR"])
+def test_portfolio_risk_section_both_themes_and_currencies(theme, currency):
+    """The Risk section (VaR table, stress-scenario chart, contribution-to-risk) renders in
+    both themes and both currency modes."""
+    at = _run("Portfolio", theme=theme, currency=currency)
+    assert not at.exception, f"Portfolio risk ({theme}/{currency}) raised: {at.exception}"
+
+
+def test_portfolio_risk_horizon_interaction():
+    """Changing the VaR horizon re-runs the risk section cleanly (√t scaling path)."""
+    at = _run("Portfolio")
+    assert not at.exception, at.exception
+    at.selectbox(key="risk_horizon").set_value("1 month (21d)").run()
+    assert not at.exception, at.exception
+
+
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+@pytest.mark.parametrize("currency", ["Native", "EUR"])
 def test_portfolio_optimizer_both_themes_and_currencies(theme, currency):
     """The Optimiser section (weights, frontier, exposure) renders in both themes/currencies."""
     at = _run("Portfolio", theme=theme, currency=currency)

@@ -160,5 +160,32 @@ def test_data_page_profile_coverage():
     assert not at.exception, at.exception
 
 
+@pytest.mark.parametrize("page", ["Recommended", "Compare", "Detail"])
+def test_attribution_and_linkedin_present(page):
+    """Every page carries the persistent 'built by Sam Maliarov' credit and the LinkedIn
+    link (header byline + footer) — the redesign's required attribution invariant."""
+    at = _run(page)
+    assert not at.exception, at.exception
+    blob = " ".join(m.value for m in at.markdown if m.value)
+    assert "Sam Maliarov" in blob, "attribution to Sam Maliarov missing"
+    assert "linkedin.com/in/semyon-malyarov" in blob, "LinkedIn profile link missing"
+
+
+@pytest.mark.parametrize("theme", ["Light", "Dark"])
+def test_both_themes_apply_readable_chrome(theme):
+    """Both themes inject their token CSS with an opaque page plane and ink colour — the
+    invariant that keeps chrome legible after re-skinning to the Meridian palette."""
+    from etf import theme as theme_mod
+    T = theme_mod.THEMES[theme]
+    style = theme_mod.css(T)
+    assert f"--plane: {T.plane}" in style and f"--ink: {T.ink}" in style
+    assert f"--accent: {T.accent}" in style
+    # The nav renders selected tabs on the accent with legible ink, in both themes.
+    nav = theme_mod.nav_styles(T)
+    assert nav["nav-link-selected"]["background-color"] == T.accent
+    at = _run("Compare", theme=theme)
+    assert not at.exception, f"Compare ({theme}) raised: {at.exception}"
+
+
 def teardown_module(module):
     os.environ.pop("ETF_FORCE_PAGE", None)

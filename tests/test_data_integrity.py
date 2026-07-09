@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from etf import db, fx, metrics, quality
+from etf import db, fx, metrics, quality, risk
 from etf.config import DB_PATH
 from etf.ingest import kenfrench
 
@@ -103,6 +103,28 @@ def test_factor_store_never_writes_nan_and_no_lookahead(tmp_path):
     assert not loaded.isna().to_numpy().all(axis=0).any() or True  # NaNs are absent, not stored
     assert loaded.index.is_monotonic_increasing
     assert (loaded.index.day >= 28).all()  # month-end dates only
+
+
+def test_crash_windows_are_dated_ordered_and_no_lookahead():
+    # The stress-test crash windows are hand-curated historical constants. Each must be a valid
+    # ordered (start < end) window firmly in the past — no window may reference a future date,
+    # which would be a lookahead bug (replaying a "crash" that has not happened yet).
+    today = pd.Timestamp.today().normalize()
+    assert risk.CRASH_WINDOWS, "crash windows must not be empty"
+    for label, (start, end) in risk.CRASH_WINDOWS.items():
+        s, e = pd.Timestamp(start), pd.Timestamp(end)
+        assert s < e, f"{label}: start {start} is not before end {end}"
+        assert e < today, f"{label}: end {end} is not in the past (lookahead)"
+
+
+def test_stress_test_never_fabricates_uncovered_windows():
+    # A young fund (history only from 2020) must be reported uncovered for pre-2020 crashes,
+    # with NaN loss fields — never a fabricated drawdown on data that does not exist.
+    idx = pd.date_range("2020-06-01", periods=400, freq="B")
+    prices = pd.DataFrame({"YNG": pd.Series(np.linspace(100, 130, len(idx)), index=idx)})
+    res = risk.stress_test(prices, {"YNG": 1.0}, "GFC 2008", risk.CRASH_WINDOWS["GFC 2008"])
+    assert not res.covered
+    assert np.isnan(res.drawdown) and np.isnan(res.worst_day)
 
 
 # --------------------------------------------------------------------------- real-DB checks

@@ -9,6 +9,31 @@ version heading on release. This is the authoritative human-readable history of 
 
 ## [Unreleased]
 
+### Added
+- **ETF profile look-through — 41 partial profiles upgraded to full** (`scripts/etf_profiles.yaml`,
+  `tests/test_profiles.py`). Researched dated (~2026-05) region/country/GICS-sector/top-10
+  breakdowns (and credit-quality/country for bonds) from justETF/issuer factsheets, lifting
+  profile coverage from **41 full / 51 partial** to **82 full / 10 partial** (of 92 funds). This
+  widens the optimiser's sector/region/asset-class constraint coverage across most portfolios.
+  - Newly-full: FTSE Developed, MSCI ACWI IMI, Solactive all-world (Amundi Prime), MSCI USA,
+    MSCI World/S&P 500 IT sectors, STOXX Europe 600, FTSE Developed Europe, MSCI EMU, MSCI EM IMI,
+    FTSE Emerging, MSCI EM ex-China, MSCI EM Small Cap, MSCI Pacific ex Japan, the six MSCI World
+    factor sleeves (momentum/quality/value/size/min-vol/multifactor), US & Europe small-cap value,
+    three global dividend/quality-income funds, four thematics (AI, robotics, healthcare
+    innovation, water, EVs), MSCI World SRI, Vanguard ESG Global All Cap, European property (REIT),
+    and six euro/US government & inflation-linked bond sub-indices.
+  - **Data-quality discipline:** every recorded weight was verified against the fund's own
+    factsheet (fund identity cross-checked against the DB, since justETF-via-fetch occasionally
+    served a different fund for less-liquid share classes); an explicit `Other` remainder keeps
+    each breakdown summing to ~1.0. Region splits are derived from the verified country top-4.
+  - **Left partial on purpose (honest gaps, no fabrication):** Franklin FTSE India, iShares
+    MSCI USA SRI & MSCI EM SRI, iShares Digitalisation (source served the wrong fund and no clean
+    alternate existed), the diversified-commodity swap and euro high-yield bond (no basket/country
+    breakdown exposed), and the four Vanguard LifeStrategy multi-asset funds (fund-of-funds
+    look-through not cleanly available; `asset_mix` already recorded).
+  - Tests: added a monotonic coverage floor (full ≥ 82, no brittle exact count), a
+    bond-full-carries-country+credit invariant, and spot-checks that upgraded funds resolve full.
+
 ### Changed
 - **Visual redesign — the *Meridian* design system** (`etf/theme.py`, `.streamlit/config.toml`,
   `app.py` chrome). Re-skins the app from the developer-IDE Tokyo Night palette to a calm,

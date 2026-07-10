@@ -1,15 +1,22 @@
 # ETF Comparison
 
 A local, personal tool to gather, store, and compare **UCITS ETFs** (returns, cost, risk,
-structure) to support buy-and-hold investing through Interactive Brokers. I made it for personal use (looking into investment options right now) and the thing is ~95% vibe-coded, so if you somehow happen upon this page - judge it as such.
+structure) and to *construct* buy-and-hold portfolios — blends, bonds & income, factor tilts,
+a constrained optimiser, and a downside-risk engine — for investing through Interactive
+Brokers. I made it for personal use (looking into investment options right now) and the thing
+is ~95% vibe-coded, so if you somehow happen upon this page - judge it as such.
+
+Built by [Sam Maliarov](https://www.linkedin.com/in/semyon-malyarov/) (attribution in-app is
+text + monogram only, no photo).
 
 The architecture is summarised in the [diagram below](#architecture); deeper working notes
 live in a local, git-ignored `brain/` knowledge base.
 
 ## What it does
 
-- **Ingests** end-of-day price history (+ dividends) for a watchlist of ~88 UCITS ETFs
-  (across 15 categories) from Yahoo Finance, with Tiingo and Stooq as fallbacks, into a
+- **Ingests** end-of-day price history (+ dividends) for a watchlist of ~91 UCITS ETFs
+  (across 15 categories, incl. equity factor sleeves and euro/German govt bonds) from Yahoo
+  Finance, with Tiingo and Stooq as fallbacks, into a
   local **SQLite** database. **Data-quality repair is built into ingestion**: GBX/GBP
   (pence↔pounds) mis-denomination and isolated bad prints are auto-detected and fixed, and
   anything still suspect (e.g. an unadjusted split) is flagged rather than trusted.
@@ -20,6 +27,13 @@ live in a local, git-ignored `brain/` knowledge base.
   error, information ratio, up/down capture), **rolling-window return distributions**, a
   **regime/stress lens**, and an all-in **cost & tax** model (IBKR commissions, tracking
   difference, spread/FX, EU dividend-tax drag, domicile notes) — all total-return basis.
+- **Profiles the universe** with a researched **look-through** dataset (`etf/profiles.py` +
+  a committed seed): every fund maps to the index it tracks, carrying region/country/GICS-sector
+  weights, credit-quality (bonds), top-10 holdings, factor tilt and replication — **82 of 92
+  funds** at full look-through, the rest left honestly partial (no invented weights). This
+  feeds the optimiser's sector/region/asset-class constraints (with explicit *coverage*
+  reporting). Also ingests the **Ken French European Fama/French-Carhart factor returns**
+  (monthly) that power the regression-based factor exposures.
 - **Presents** it in a themed **Streamlit** UI (switchable **Light / Dark** — the *Meridian*
   slate-navy / warm-paper palette with a teal accent) with a top nav and seven pages:
   - **Recommended** — selectable ranking (return / CAGR / CAGR-after-TER / Sharpe / Sortino
@@ -29,15 +43,37 @@ live in a local, git-ignored `brain/` knowledge base.
     correlation heatmap, risk/return (incl. all-in cost & CAGR-after-cost) + trailing tables.
   - **Screener** — a risk-return map of the whole universe, a filterable/taggable table,
     favourites filter, and CSV export.
-  - **Portfolio** — build a weighted blend, rebalanced backtest (vs drift), blended metrics,
-    low-correlation suggestions, lump-sum-vs-DCA, and a contribution-only **rebalancing
-    assistant** (paste your holdings).
+  - **Portfolio** — a full portfolio-construction desk:
+    - **Blends** — build a weighted, periodically-rebalanced backtest (vs let-it-drift),
+      blended metrics, low-correlation suggestions, lump-sum-vs-DCA, and a contribution-only
+      **rebalancing assistant** (paste your holdings).
+    - **Bonds · income** — for a bond fund, compare **distributions reinvested vs cashed out**
+      (net-worth + cumulative-income paths), trailing-12-month yield, and the after-tax result
+      under Dutch **Box 3 (2026 fictitious-return wealth tax)** *or* the postponed **2028
+      actual-return** reform (both parameter sets sourced and configurable).
+    - **Factor model** — pick MSCI World factor sleeves (value / momentum / quality / size /
+      min-vol / multifactor), see each sleeve's additive contribution, the blend's **regression
+      factor loadings** (betas / alpha / R² on the Ken French European FF-Carhart factors, read
+      as relative tilts since those factors are USD-based), and a best/base/worst + market-crash
+      purchasing-strategy scenario fan.
+    - **Optimiser** — constrained mean-variance (**max-Sharpe / min-volatility**) solved with
+      cvxpy + PyPortfolioOpt (Ledoit-Wolf covariance), with **leverage / shorting**,
+      **turnover**, per-fund, and **sector/region/asset-class** limits (from the look-through
+      profiles, with coverage reporting), plus the efficient frontier and which constraints
+      bind. Carries a Michaud estimation-sensitivity caveat.
+    - **Risk** — **VaR & CVaR** at 95/99% by historical, parametric-Gaussian, Cornish-Fisher
+      (fat-tail) and Monte-Carlo methods with √t horizon scaling; **contribution-to-risk** per
+      holding (Euler allocation); and **historical stress replays** of seven dated crash windows
+      (GFC 2008 → SVB 2023) on the current weights, with honest caveats and explicit coverage.
   - **Detail** — price, monthly-return heatmap, rolling vol/return, cost & tax panel,
-    benchmark-relative + regime + any-window-returns panels, an opt-in local **sentiment**
-    read, fund fact-sheet download, and a persisted favourite/tag.
+    benchmark-relative + regime + any-window-returns panels, a **strategy & exposure
+    look-through** view (region/sector/credit bars, top countries & holdings, Full/Partial
+    flag), an opt-in local **sentiment** read, fund fact-sheet download, and a persisted
+    favourite/tag.
   - **Strategy** — a DCA backtest (net of commissions/FX) **plus a forward projection**
     (OLS trend or Monte-Carlo/bootstrap fan) of net worth up to 40 years.
-  - **Data** — coverage/freshness, a data-health report, staleness flags, and a fetch button.
+  - **Data** — coverage/freshness, a data-health report, staleness flags, a universe-level
+    **profile-coverage** panel (profiled / full / partial), and a fetch button.
 - Keeps the raw data in a plain `.db` you can query with any SQL client.
 
 The ETF universe is generated + verified against Yahoo by `scripts/build_watchlist.py`
@@ -123,6 +159,7 @@ python -m etf.ingest --if-stale 7    # only fetch if data >7 days old (scheduled
 python -m etf.ingest --repair        # re-run data-quality repair, no network
 python -m etf.ingest --fx            # backfill quote currencies + EUR FX rates
 python -m etf.ingest --facts         # backfill AUM/inception + macro (10Y yield, VIX)
+python -m etf.ingest --factors-ken   # fetch Ken French European FF5+momentum factor returns
 
 # 2. Launch the UI
 streamlit run src/etf/app.py
@@ -158,17 +195,23 @@ ruff check src tests
 
 - `src/etf/` — `config`, `db`, `data`, `quality` (data-quality repair), `fx` (currency
   normalisation), `costs` (cost & tax model), `metrics`, `strategy` (DCA), `projection`
-  (forward projections), `portfolio` (blends + rebalancing), `sentiment` (local scorer),
-  `settings` (persisted prefs), `theme`, `ingest/` (source adapters), `app.py` (UI).
+  (forward projections), `portfolio` (blends + rebalancing), `bonds` (reinvest-vs-cash-out
+  income), `tax` (Dutch Box-3 / actual-return), `profiles` (ETF look-through + exposure
+  aggregation), `factors` (regression exposures + scenario fan), `optimizer` (constrained
+  mean-variance), `risk` (VaR/CVaR + stress), `sentiment` (local scorer), `settings` (persisted
+  prefs), `theme` (Meridian Light/Dark), `ingest/` (source adapters, incl. `kenfrench`),
+  `app.py` (UI).
 - `scripts/build_watchlist.py` — regenerates/verifies `watchlist.yaml`; auto-drops tickers
   that fail verification repeatedly (`scripts/failures.yaml` ledger, git-ignored).
 - `data/etf.db` — local SQLite database (git-ignored, regenerable via ingest). Also holds
   `data_health`, `fx_rates`, `macro_series`; `data/settings.json` stores UI preferences.
 - `watchlist.yaml` — the ETFs to track (auto-generated).
-- `tests/` — unit tests for analytics, quality, FX, costs, projections, portfolio,
-  sentiment and robustness, plus UI/theme smoke tests.
+- `tests/` — unit tests for analytics, quality, FX, costs, projections, portfolio, bonds,
+  tax, profiles, factors, optimiser, risk, sentiment and robustness, plus data-integrity
+  invariants, WCAG-AA theme-contrast checks, and UI/theme smoke tests (both themes and both
+  currency modes).
 
 ## Stack
 
-Python 3.13 · SQLite · pandas / numpy · yfinance (→ Tiingo/Stooq) · Streamlit + Plotly ·
-streamlit-option-menu.
+Python 3.13 · SQLite · pandas / numpy · yfinance (→ Tiingo/Stooq) · PyPortfolioOpt / cvxpy
+(portfolio optimiser) · Streamlit + Plotly · streamlit-option-menu.

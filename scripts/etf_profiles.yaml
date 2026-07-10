@@ -78,12 +78,24 @@ indices:
     replication: physical
     factor_tilt: [large-cap, developed-markets]
     as_of: 2026-05
-    source: Vanguard factsheet (geography inferred from FTSE Developed = MSCI World peer)
-    data_complete: false
+    source: justETF / Vanguard FTSE Developed World factsheet
+    data_complete: true
     region_weights: {North America: 0.72, Europe: 0.17, Developed Asia-Pacific: 0.11}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.6317, Japan: 0.0620, South Korea: 0.0315,
+                      United Kingdom: 0.0296, Other: 0.2452}
+    sector_weights: {Information Technology: 0.3123, Financials: 0.1297, Industrials: 0.1004,
+                     Consumer Discretionary: 0.0903, Other: 0.3673}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0511}
+      - {name: Apple, weight: 0.0465}
+      - {name: Microsoft, weight: 0.0345}
+      - {name: Amazon, weight: 0.0269}
+      - {name: Alphabet A, weight: 0.0228}
+      - {name: Broadcom, weight: 0.0213}
+      - {name: Alphabet C, weight: 0.0185}
+      - {name: Meta Platforms, weight: 0.0143}
+      - {name: Tesla, weight: 0.0127}
+      - {name: Micron Technology, weight: 0.0112}
 
   # ---------------------------------------------------------------- Global all-country equity
   ftse_all_world:
@@ -154,13 +166,25 @@ indices:
     replication: physical
     factor_tilt: [global, all-country, all-cap]
     as_of: 2026-05
-    source: SPDR factsheet (exposure ~ MSCI ACWI with a small-cap tail)
-    data_complete: false
+    source: justETF / SPDR MSCI ACWI IMI factsheet (2026-05-29)
+    data_complete: true
     region_weights: {North America: 0.62, Europe: 0.155, Developed Asia-Pacific: 0.095,
                      Emerging Markets: 0.13}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.5886, Japan: 0.0549, Taiwan: 0.0326,
+                      United Kingdom: 0.0290, Other: 0.2949}
+    sector_weights: {Information Technology: 0.3061, Financials: 0.1351, Industrials: 0.1090,
+                     Consumer Discretionary: 0.0908, Other: 0.3590}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0427}
+      - {name: Apple, weight: 0.0394}
+      - {name: Microsoft, weight: 0.0272}
+      - {name: Amazon, weight: 0.0224}
+      - {name: Alphabet A, weight: 0.0194}
+      - {name: Broadcom, weight: 0.0173}
+      - {name: Taiwan Semiconductor, weight: 0.0164}
+      - {name: Alphabet C, weight: 0.0154}
+      - {name: Meta Platforms, weight: 0.0118}
+      - {name: Tesla, weight: 0.0106}
 
   solactive_gbs_acwi:
     index_name: Solactive GBS Global Markets Large & Mid Cap
@@ -171,13 +195,25 @@ indices:
     replication: physical
     factor_tilt: [global, all-country, low-cost]
     as_of: 2026-05
-    source: Amundi factsheet (exposure ~ all-country large/mid peer)
-    data_complete: false
+    source: justETF / Amundi Prime All Country World factsheet (2026-05-26)
+    data_complete: true
     region_weights: {North America: 0.62, Europe: 0.155, Developed Asia-Pacific: 0.095,
                      Emerging Markets: 0.13}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.5885, Japan: 0.0552, Taiwan: 0.0323,
+                      South Korea: 0.0279, Other: 0.2961}
+    sector_weights: {Information Technology: 0.3159, Financials: 0.1399, Industrials: 0.0972,
+                     Consumer Discretionary: 0.0929, Other: 0.3541}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0494}
+      - {name: Apple, weight: 0.0434}
+      - {name: Microsoft, weight: 0.0300}
+      - {name: Amazon, weight: 0.0250}
+      - {name: Alphabet A, weight: 0.0223}
+      - {name: Broadcom, weight: 0.0193}
+      - {name: Alphabet C, weight: 0.0192}
+      - {name: Taiwan Semiconductor, weight: 0.0170}
+      - {name: Tesla, weight: 0.0142}
+      - {name: Meta Platforms, weight: 0.0132}
 
   # ---------------------------------------------------------------- US equity
   sp500:
@@ -216,12 +252,23 @@ indices:
     replication: physical
     factor_tilt: [large-cap, us, tech-heavy]
     as_of: 2026-05
-    source: iShares factsheet (profile ~ S&P 500 with a mid-cap tail)
-    data_complete: false
+    source: justETF / Xtrackers MSCI USA factsheet (index-level; CSUS tracks same index)
+    data_complete: true
     region_weights: {North America: 1.0}
-    country_weights: {United States: 1.0}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.9369, Ireland: 0.0148, Other: 0.0483}
+    sector_weights: {Information Technology: 0.3821, Communication Services: 0.0993,
+                     Financials: 0.0946, Consumer Discretionary: 0.0944, Other: 0.3296}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0751}
+      - {name: Apple, weight: 0.0676}
+      - {name: Microsoft, weight: 0.0413}
+      - {name: Amazon, weight: 0.0365}
+      - {name: Alphabet A, weight: 0.0331}
+      - {name: Broadcom, weight: 0.0286}
+      - {name: Alphabet C, weight: 0.0262}
+      - {name: Micron Technology, weight: 0.0197}
+      - {name: Meta Platforms, weight: 0.0196}
+      - {name: Tesla, weight: 0.0174}
 
   msci_usa_sri:
     index_name: MSCI USA SRI Select Reduced Fossil Fuels
@@ -276,12 +323,25 @@ indices:
     replication: physical
     factor_tilt: [sector-technology, developed, tech-heavy]
     as_of: 2026-05
-    source: Xtrackers factsheet (single-sector index = ~100% Information Technology)
-    data_complete: false
-    region_weights: {North America: 0.85, Europe: 0.06, Developed Asia-Pacific: 0.09}
-    country_weights: {}
-    sector_weights: {Information Technology: 1.0}
-    top_holdings: []
+    source: justETF / Xtrackers MSCI World Information Technology factsheet
+    data_complete: true
+    region_weights: {North America: 0.84, Europe: 0.06, Developed Asia-Pacific: 0.04,
+                     Other: 0.06}
+    country_weights: {United States: 0.8391, Netherlands: 0.0350, Japan: 0.0346,
+                      Ireland: 0.0114, Other: 0.0799}
+    sector_weights: {Information Technology: 0.9520, Communication Services: 0.0021,
+                     Other: 0.0459}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.1778}
+      - {name: Apple, weight: 0.1600}
+      - {name: Microsoft, weight: 0.0979}
+      - {name: Broadcom, weight: 0.0677}
+      - {name: Micron Technology, weight: 0.0468}
+      - {name: AMD, weight: 0.0320}
+      - {name: ASML Holding, weight: 0.0270}
+      - {name: Intel, weight: 0.0215}
+      - {name: Applied Materials, weight: 0.0179}
+      - {name: Lam Research, weight: 0.0178}
 
   sp500_it:
     index_name: S&P 500 Information Technology
@@ -292,12 +352,22 @@ indices:
     replication: physical
     factor_tilt: [sector-technology, us, tech-heavy]
     as_of: 2026-05
-    source: iShares factsheet (single-sector index = 100% Information Technology)
-    data_complete: false
+    source: justETF / iShares S&P 500 Information Technology Sector factsheet
+    data_complete: true
     region_weights: {North America: 1.0}
-    country_weights: {United States: 1.0}
-    sector_weights: {Information Technology: 1.0}
-    top_holdings: []
+    country_weights: {United States: 0.9412, Ireland: 0.0125, Other: 0.0463}
+    sector_weights: {Information Technology: 0.9570, Other: 0.0430}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.2040}
+      - {name: Apple, weight: 0.1668}
+      - {name: Microsoft, weight: 0.1367}
+      - {name: Broadcom, weight: 0.0866}
+      - {name: Micron Technology, weight: 0.0447}
+      - {name: AMD, weight: 0.0344}
+      - {name: Intel, weight: 0.0220}
+      - {name: Cisco Systems, weight: 0.0195}
+      - {name: Lam Research, weight: 0.0163}
+      - {name: Oracle, weight: 0.0156}
 
   # ---------------------------------------------------------------- Europe equity
   msci_europe:
@@ -337,13 +407,24 @@ indices:
     replication: physical
     factor_tilt: [europe, all-cap]
     as_of: 2026-05
-    source: STOXX index factsheet (country weights); sectors/holdings not captured
-    data_complete: false
+    source: justETF / iShares STOXX Europe 600 factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {United Kingdom: 0.223, France: 0.166, Switzerland: 0.149,
-                      Germany: 0.141, Other: 0.321}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United Kingdom: 0.1943, France: 0.1398, Germany: 0.1325,
+                      Switzerland: 0.1194, Other: 0.4140}
+    sector_weights: {Financials: 0.2290, Industrials: 0.1837, Information Technology: 0.0922,
+                     Health Care: 0.0818, Other: 0.4133}
+    top_holdings:
+      - {name: ASML Holding, weight: 0.0411}
+      - {name: HSBC Holdings, weight: 0.0211}
+      - {name: Roche Holding, weight: 0.0194}
+      - {name: AstraZeneca, weight: 0.0189}
+      - {name: Novartis, weight: 0.0188}
+      - {name: Nestle, weight: 0.0172}
+      - {name: Shell, weight: 0.0156}
+      - {name: Siemens, weight: 0.0155}
+      - {name: TotalEnergies, weight: 0.0155}
+      - {name: SAP, weight: 0.0126}
 
   ftse_dev_europe:
     index_name: FTSE Developed Europe
@@ -354,12 +435,24 @@ indices:
     replication: physical
     factor_tilt: [large-cap, europe]
     as_of: 2026-05
-    source: Vanguard factsheet (profile ~ MSCI Europe peer)
-    data_complete: false
+    source: justETF / Vanguard FTSE Developed Europe factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United Kingdom: 0.1901, Germany: 0.1322, France: 0.1265,
+                      Switzerland: 0.1230, Other: 0.4282}
+    sector_weights: {Financials: 0.2269, Industrials: 0.1779, Information Technology: 0.0922,
+                     Health Care: 0.0823, Other: 0.4207}
+    top_holdings:
+      - {name: ASML Holding, weight: 0.0425}
+      - {name: HSBC Holdings, weight: 0.0219}
+      - {name: Roche Holding, weight: 0.0201}
+      - {name: Novartis, weight: 0.0196}
+      - {name: AstraZeneca, weight: 0.0189}
+      - {name: Nestle, weight: 0.0178}
+      - {name: Shell, weight: 0.0162}
+      - {name: Siemens, weight: 0.0157}
+      - {name: SAP, weight: 0.0157}
+      - {name: Banco Santander, weight: 0.0124}
 
   msci_emu:
     index_name: MSCI EMU
@@ -370,12 +463,24 @@ indices:
     replication: physical
     factor_tilt: [eurozone, large-cap]
     as_of: 2026-05
-    source: iShares factsheet (eurozone-only subset of MSCI Europe)
-    data_complete: false
+    source: justETF / iShares Core MSCI EMU factsheet (index-level; CEU2 tracks same index)
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Germany: 0.2547, France: 0.2514, Netherlands: 0.1787,
+                      Spain: 0.1002, Other: 0.2150}
+    sector_weights: {Financials: 0.2333, Industrials: 0.1968, Information Technology: 0.1619,
+                     Consumer Discretionary: 0.0884, Other: 0.3196}
+    top_holdings:
+      - {name: ASML Holding, weight: 0.0826}
+      - {name: Siemens, weight: 0.0308}
+      - {name: SAP, weight: 0.0249}
+      - {name: Banco Santander, weight: 0.0236}
+      - {name: TotalEnergies, weight: 0.0228}
+      - {name: Schneider Electric, weight: 0.0227}
+      - {name: Allianz, weight: 0.0223}
+      - {name: Siemens Energy, weight: 0.0223}
+      - {name: Iberdrola, weight: 0.0194}
+      - {name: LVMH, weight: 0.0181}
 
   # ---------------------------------------------------------------- Emerging markets
   msci_em:
@@ -416,12 +521,24 @@ indices:
     replication: physical
     factor_tilt: [emerging-markets, all-cap]
     as_of: 2026-05
-    source: iShares factsheet (profile ~ MSCI EM with small-cap tail)
-    data_complete: false
+    source: justETF / iShares Core MSCI EM IMI factsheet
+    data_complete: true
     region_weights: {Emerging Markets: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Taiwan: 0.2615, South Korea: 0.2209, China: 0.1669,
+                      India: 0.0997, Other: 0.2510}
+    sector_weights: {Information Technology: 0.4150, Financials: 0.1558,
+                     Consumer Discretionary: 0.0783, Industrials: 0.0664, Other: 0.2845}
+    top_holdings:
+      - {name: Taiwan Semiconductor, weight: 0.1289}
+      - {name: Samsung Electronics, weight: 0.0684}
+      - {name: SK hynix, weight: 0.0595}
+      - {name: Tencent Holdings, weight: 0.0234}
+      - {name: Alibaba Group, weight: 0.0180}
+      - {name: MediaTek, weight: 0.0139}
+      - {name: Delta Electronics, weight: 0.0107}
+      - {name: Hon Hai Precision, weight: 0.0079}
+      - {name: Samsung Electronics (pref), weight: 0.0075}
+      - {name: China Construction Bank, weight: 0.0065}
 
   ftse_emerging:
     index_name: FTSE Emerging
@@ -432,12 +549,24 @@ indices:
     replication: physical
     factor_tilt: [emerging-markets, large-cap]
     as_of: 2026-05
-    source: Vanguard factsheet (FTSE EM excludes South Korea)
-    data_complete: false
+    source: justETF / Vanguard FTSE Emerging Markets factsheet
+    data_complete: true
     region_weights: {Emerging Markets: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Taiwan: 0.3187, China: 0.2443, India: 0.1309,
+                      Brazil: 0.0392, Other: 0.2669}
+    sector_weights: {Information Technology: 0.3225, Financials: 0.1835,
+                     Consumer Discretionary: 0.0869, Materials: 0.0669, Other: 0.3402}
+    top_holdings:
+      - {name: Taiwan Semiconductor, weight: 0.1686}
+      - {name: Tencent Holdings, weight: 0.0311}
+      - {name: Alibaba Group, weight: 0.0255}
+      - {name: MediaTek, weight: 0.0185}
+      - {name: Delta Electronics, weight: 0.0139}
+      - {name: Hon Hai Precision, weight: 0.0104}
+      - {name: Reliance Industries, weight: 0.0087}
+      - {name: China Construction Bank, weight: 0.0087}
+      - {name: HDFC Bank, weight: 0.0082}
+      - {name: ICICI Bank, weight: 0.0064}
 
   msci_em_ex_china:
     index_name: MSCI Emerging Markets ex China
@@ -448,12 +577,24 @@ indices:
     replication: physical
     factor_tilt: [emerging-markets, ex-china]
     as_of: 2026-05
-    source: iShares factsheet (MSCI EM minus China)
-    data_complete: false
+    source: justETF / iShares MSCI EM ex-China factsheet
+    data_complete: true
     region_weights: {Emerging Markets: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Taiwan: 0.3278, South Korea: 0.2903, India: 0.1176,
+                      Brazil: 0.0437, Other: 0.2206}
+    sector_weights: {Information Technology: 0.5232, Financials: 0.1617, Industrials: 0.0573,
+                     Materials: 0.0542, Other: 0.2036}
+    top_holdings:
+      - {name: Taiwan Semiconductor, weight: 0.1843}
+      - {name: Samsung Electronics, weight: 0.0980}
+      - {name: SK hynix, weight: 0.0852}
+      - {name: MediaTek, weight: 0.0198}
+      - {name: Delta Electronics, weight: 0.0151}
+      - {name: Hon Hai Precision, weight: 0.0113}
+      - {name: Samsung Electronics (pref), weight: 0.0107}
+      - {name: HDFC Bank, weight: 0.0087}
+      - {name: Reliance Industries, weight: 0.0084}
+      - {name: Samsung Electro-Mechanics, weight: 0.0079}
 
   # ---------------------------------------------------------------- Regional / country
   msci_japan:
@@ -492,12 +633,24 @@ indices:
     replication: physical
     factor_tilt: [developed-asia-pacific, ex-japan, financials-materials]
     as_of: 2026-05
-    source: iShares factsheet (Australia-led developed Pacific)
-    data_complete: false
+    source: justETF / iShares Core MSCI Pacific ex Japan factsheet
+    data_complete: true
     region_weights: {Developed Asia-Pacific: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Australia: 0.6273, Hong Kong: 0.1724, Singapore: 0.1379,
+                      New Zealand: 0.0216, Other: 0.0408}
+    sector_weights: {Financials: 0.4332, Materials: 0.1689, Industrials: 0.0796,
+                     Real Estate: 0.0753, Other: 0.2430}
+    top_holdings:
+      - {name: BHP Group, weight: 0.1008}
+      - {name: Commonwealth Bank of Australia, weight: 0.0879}
+      - {name: AIA Group, weight: 0.0488}
+      - {name: DBS Group, weight: 0.0451}
+      - {name: Westpac Banking, weight: 0.0392}
+      - {name: National Australia Bank, weight: 0.0364}
+      - {name: ANZ Group, weight: 0.0338}
+      - {name: Wesfarmers, weight: 0.0288}
+      - {name: Macquarie Group, weight: 0.0276}
+      - {name: Oversea-Chinese Banking, weight: 0.0266}
 
   msci_india:
     index_name: MSCI India
@@ -610,12 +763,24 @@ indices:
     replication: physical
     factor_tilt: [small-cap, emerging-markets, size]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: justETF / MSCI EM Small Cap factsheet (index-level)
+    data_complete: true
     region_weights: {Emerging Markets: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {Taiwan: 0.2669, South Korea: 0.1503, India: 0.1502,
+                      China: 0.0579, Other: 0.3747}
+    sector_weights: {Information Technology: 0.2555, Industrials: 0.1474, Materials: 0.0926,
+                     Consumer Discretionary: 0.0842, Other: 0.4203}
+    top_holdings:
+      - {name: Winbond Electronics, weight: 0.0089}
+      - {name: Phison Electronics, weight: 0.0082}
+      - {name: LG Innotek, weight: 0.0079}
+      - {name: Nanya Technology, weight: 0.0078}
+      - {name: Taiwan Union Technology, weight: 0.0075}
+      - {name: Macronix, weight: 0.0053}
+      - {name: Compeq Manufacturing, weight: 0.0051}
+      - {name: Powerchip, weight: 0.0049}
+      - {name: Powertech Technology, weight: 0.0047}
+      - {name: Kinsus Interconnect, weight: 0.0045}
 
   msci_usa_smallcap_value:
     index_name: MSCI USA Small Cap Value Weighted
@@ -626,12 +791,23 @@ indices:
     replication: physical
     factor_tilt: [small-cap, value, us, size]
     as_of: 2026-05
-    source: SPDR factsheet (value-weighted US small cap)
-    data_complete: false
+    source: justETF / SPDR MSCI USA Small Cap Value Weighted factsheet
+    data_complete: true
     region_weights: {North America: 1.0}
-    country_weights: {United States: 1.0}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.8869, Bermuda: 0.0149, Other: 0.0982}
+    sector_weights: {Financials: 0.2077, Consumer Discretionary: 0.1515, Industrials: 0.1409,
+                     Information Technology: 0.0847, Other: 0.4152}
+    top_holdings:
+      - {name: TD SYNNEX, weight: 0.0064}
+      - {name: Performance Food Group, weight: 0.0057}
+      - {name: Galaxy Digital, weight: 0.0053}
+      - {name: RenaissanceRe Holdings, weight: 0.0049}
+      - {name: Lithia Motors, weight: 0.0048}
+      - {name: Reinsurance Group of America, weight: 0.0048}
+      - {name: Viatris, weight: 0.0044}
+      - {name: Ovintiv, weight: 0.0043}
+      - {name: Albertsons, weight: 0.0043}
+      - {name: Molina Healthcare, weight: 0.0042}
 
   msci_europe_smallcap_value:
     index_name: MSCI Europe Small Cap Value Weighted
@@ -642,12 +818,24 @@ indices:
     replication: physical
     factor_tilt: [small-cap, value, europe, size]
     as_of: 2026-05
-    source: SPDR factsheet (value-weighted European small cap)
-    data_complete: false
+    source: justETF / SPDR MSCI Europe Small Cap Value Weighted factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United Kingdom: 0.2508, France: 0.1030, Germany: 0.0907,
+                      Sweden: 0.0706, Other: 0.4849}
+    sector_weights: {Industrials: 0.2385, Financials: 0.1298, Consumer Discretionary: 0.1230,
+                     Materials: 0.1077, Other: 0.4010}
+    top_holdings:
+      - {name: thyssenkrupp, weight: 0.0100}
+      - {name: WPP, weight: 0.0096}
+      - {name: Valeo, weight: 0.0089}
+      - {name: Adecco Group, weight: 0.0086}
+      - {name: TUI, weight: 0.0083}
+      - {name: DCC, weight: 0.0078}
+      - {name: Forvia, weight: 0.0076}
+      - {name: Air France-KLM, weight: 0.0072}
+      - {name: SCOR, weight: 0.0066}
+      - {name: Barratt Redrow, weight: 0.0064}
 
   # ---------------------------------------------------------------- Factor / smart beta
   msci_world_momentum:
@@ -659,12 +847,25 @@ indices:
     replication: physical
     factor_tilt: [momentum, developed-markets, factor]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Momentum)
-    data_complete: false
-    region_weights: {North America: 0.72, Europe: 0.16, Developed Asia-Pacific: 0.12}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Momentum factsheet
+    data_complete: true
+    region_weights: {North America: 0.5618, Europe: 0.0463, Developed Asia-Pacific: 0.1035,
+                     Other: 0.2884}
+    country_weights: {United States: 0.5005, Japan: 0.1035, Canada: 0.0613,
+                      United Kingdom: 0.0463, Other: 0.2884}
+    sector_weights: {Information Technology: 0.3103, Industrials: 0.1298, Financials: 0.1217,
+                     Energy: 0.1006, Other: 0.3376}
+    top_holdings:
+      - {name: Micron Technology, weight: 0.0657}
+      - {name: AMD, weight: 0.0316}
+      - {name: Intel, weight: 0.0273}
+      - {name: Alphabet A, weight: 0.0258}
+      - {name: Exxon Mobil, weight: 0.0252}
+      - {name: ASML Holding, weight: 0.0248}
+      - {name: Caterpillar, weight: 0.0229}
+      - {name: Johnson & Johnson, weight: 0.0222}
+      - {name: Lam Research, weight: 0.0221}
+      - {name: Alphabet C, weight: 0.0206}
 
   msci_world_quality:
     index_name: MSCI World Quality
@@ -675,12 +876,24 @@ indices:
     replication: physical
     factor_tilt: [quality, developed-markets, factor]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Quality)
-    data_complete: false
-    region_weights: {North America: 0.73, Europe: 0.15, Developed Asia-Pacific: 0.12}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Quality factsheet
+    data_complete: true
+    region_weights: {North America: 0.6666, Europe: 0.1069, Other: 0.2265}
+    country_weights: {United States: 0.6666, United Kingdom: 0.0395, Switzerland: 0.0350,
+                      Netherlands: 0.0324, Other: 0.2265}
+    sector_weights: {Information Technology: 0.3346, Industrials: 0.1041,
+                     Consumer Discretionary: 0.0936, Financials: 0.0893, Other: 0.3784}
+    top_holdings:
+      - {name: Microsoft, weight: 0.0576}
+      - {name: Apple, weight: 0.0558}
+      - {name: NVIDIA, weight: 0.0511}
+      - {name: Meta Platforms, weight: 0.0376}
+      - {name: Visa, weight: 0.0320}
+      - {name: ASML Holding, weight: 0.0296}
+      - {name: Eli Lilly, weight: 0.0245}
+      - {name: TJX, weight: 0.0225}
+      - {name: Lam Research, weight: 0.0210}
+      - {name: Alphabet A, weight: 0.0195}
 
   msci_world_value:
     index_name: MSCI World Enhanced Value
@@ -691,12 +904,25 @@ indices:
     replication: physical
     factor_tilt: [value, developed-markets, factor]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Enhanced Value)
-    data_complete: false
-    region_weights: {North America: 0.62, Europe: 0.20, Developed Asia-Pacific: 0.18}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Value factsheet
+    data_complete: true
+    region_weights: {North America: 0.4419, Developed Asia-Pacific: 0.1928, Europe: 0.1347,
+                     Other: 0.2306}
+    country_weights: {United States: 0.4419, Japan: 0.1928, United Kingdom: 0.0780,
+                      France: 0.0567, Other: 0.2306}
+    sector_weights: {Information Technology: 0.3245, Financials: 0.1394, Industrials: 0.1024,
+                     Consumer Discretionary: 0.0897, Other: 0.3440}
+    top_holdings:
+      - {name: Micron Technology, weight: 0.1197}
+      - {name: Cisco Systems, weight: 0.0334}
+      - {name: Qualcomm, weight: 0.0249}
+      - {name: Verizon Communications, weight: 0.0219}
+      - {name: Toyota Motor, weight: 0.0169}
+      - {name: AT&T, weight: 0.0166}
+      - {name: Comcast, weight: 0.0139}
+      - {name: British American Tobacco, weight: 0.0115}
+      - {name: NXP Semiconductors, weight: 0.0115}
+      - {name: General Motors, weight: 0.0109}
 
   msci_world_size:
     index_name: MSCI World Equal Weighted (Size)
@@ -707,12 +933,25 @@ indices:
     replication: physical
     factor_tilt: [size, equal-weight, developed-markets, factor]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Equal Weighted)
-    data_complete: false
-    region_weights: {North America: 0.60, Europe: 0.22, Developed Asia-Pacific: 0.18}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Size factsheet (now branded Mid-Cap Equal Weight)
+    data_complete: true
+    region_weights: {North America: 0.3934, Developed Asia-Pacific: 0.1396, Europe: 0.0457,
+                     Other: 0.4213}
+    country_weights: {United States: 0.3364, Japan: 0.1396, Canada: 0.0570,
+                      United Kingdom: 0.0457, Other: 0.4213}
+    sector_weights: {Industrials: 0.1867, Financials: 0.1274, Information Technology: 0.1012,
+                     Consumer Discretionary: 0.0905, Other: 0.4942}
+    top_holdings:
+      - {name: Super Micro Computer, weight: 0.0020}
+      - {name: IonQ, weight: 0.0020}
+      - {name: IBIDEN, weight: 0.0019}
+      - {name: NetApp, weight: 0.0019}
+      - {name: Okta, weight: 0.0019}
+      - {name: Astera Labs, weight: 0.0018}
+      - {name: Credo Technology, weight: 0.0018}
+      - {name: TDK, weight: 0.0018}
+      - {name: First Solar, weight: 0.0018}
+      - {name: Akzo Nobel, weight: 0.0018}
 
   msci_world_minvol:
     index_name: MSCI World Minimum Volatility
@@ -723,12 +962,25 @@ indices:
     replication: physical
     factor_tilt: [low-volatility, defensive, developed-markets, factor]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Min Vol)
-    data_complete: false
-    region_weights: {North America: 0.68, Europe: 0.18, Developed Asia-Pacific: 0.14}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Min Vol factsheet
+    data_complete: true
+    region_weights: {North America: 0.6713, Developed Asia-Pacific: 0.1041, Europe: 0.0428,
+                     Other: 0.1818}
+    country_weights: {United States: 0.6293, Japan: 0.1041, Switzerland: 0.0428,
+                      Canada: 0.0420, Other: 0.1818}
+    sector_weights: {Information Technology: 0.2602, Health Care: 0.1367, Financials: 0.1225,
+                     Communication Services: 0.1087, Other: 0.3719}
+    top_holdings:
+      - {name: Cisco Systems, weight: 0.0156}
+      - {name: Duke Energy, weight: 0.0143}
+      - {name: Johnson & Johnson, weight: 0.0142}
+      - {name: Southern Co, weight: 0.0137}
+      - {name: Exxon Mobil, weight: 0.0134}
+      - {name: Microsoft, weight: 0.0127}
+      - {name: AT&T, weight: 0.0123}
+      - {name: Novartis, weight: 0.0123}
+      - {name: Berkshire Hathaway, weight: 0.0118}
+      - {name: Motorola Solutions, weight: 0.0117}
 
   msci_world_multifactor:
     index_name: MSCI World Diversified Multiple-Factor
@@ -739,12 +991,26 @@ indices:
     replication: physical
     factor_tilt: [multifactor, value, momentum, quality, size, developed-markets]
     as_of: 2026-05
-    source: iShares factsheet (MSCI World Diversified Multiple-Factor)
-    data_complete: false
-    region_weights: {North America: 0.66, Europe: 0.18, Developed Asia-Pacific: 0.16}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Edge MSCI World Multifactor factsheet (now STOXX World Equity Multifactor)
+    data_complete: true
+    region_weights: {North America: 0.6293, Developed Asia-Pacific: 0.0864, Europe: 0.0321,
+                     Other: 0.2522}
+    country_weights: {United States: 0.5933, Japan: 0.0864, Canada: 0.0360,
+                      Ireland: 0.0321, Other: 0.2522}
+    sector_weights: {Information Technology: 0.2981, Financials: 0.1853,
+                     Consumer Discretionary: 0.1078, Communication Services: 0.0785,
+                     Other: 0.3303}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0525}
+      - {name: Apple, weight: 0.0435}
+      - {name: Microsoft, weight: 0.0368}
+      - {name: Alphabet C, weight: 0.0332}
+      - {name: Broadcom, weight: 0.0267}
+      - {name: Amazon, weight: 0.0203}
+      - {name: Dell Technologies, weight: 0.0185}
+      - {name: UniCredit, weight: 0.0137}
+      - {name: Manulife Financial, weight: 0.0134}
+      - {name: Trane Technologies, weight: 0.0133}
 
   # ---------------------------------------------------------------- Dividend / income
   ftse_high_div:
@@ -785,13 +1051,24 @@ indices:
     replication: physical
     factor_tilt: [dividend, high-yield, value, global]
     as_of: 2026-05
-    source: SPDR factsheet
-    data_complete: false
-    region_weights: {North America: 0.35, Europe: 0.30, Developed Asia-Pacific: 0.20,
-                     Emerging Markets: 0.10, Other: 0.05}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / SPDR S&P Global Dividend Aristocrats factsheet
+    data_complete: true
+    region_weights: {North America: 0.6241, Europe: 0.0441, Other: 0.3318}
+    country_weights: {United States: 0.5250, Canada: 0.0991, Hong Kong: 0.0471,
+                      United Kingdom: 0.0441, Other: 0.2847}
+    sector_weights: {Financials: 0.2245, Utilities: 0.1608, Real Estate: 0.1314,
+                     Industrials: 0.1011, Other: 0.3822}
+    top_holdings:
+      - {name: Verizon Communications, weight: 0.0187}
+      - {name: Getty Realty, weight: 0.0177}
+      - {name: Highwoods Properties, weight: 0.0169}
+      - {name: TELUS, weight: 0.0169}
+      - {name: Pfizer, weight: 0.0158}
+      - {name: Edison International, weight: 0.0154}
+      - {name: APA Group, weight: 0.0154}
+      - {name: LTC Properties, weight: 0.0150}
+      - {name: United Parcel Service, weight: 0.0149}
+      - {name: Flowers Foods, weight: 0.0144}
 
   stoxx_global_select_div:
     index_name: STOXX Global Select Dividend 100
@@ -802,13 +1079,25 @@ indices:
     replication: physical
     factor_tilt: [dividend, high-yield, value, global]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
-    region_weights: {North America: 0.40, Europe: 0.30, Developed Asia-Pacific: 0.25,
-                     Other: 0.05}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares STOXX Global Select Dividend 100 factsheet
+    data_complete: true
+    region_weights: {North America: 0.2065, Developed Asia-Pacific: 0.0960, Europe: 0.0870,
+                     Other: 0.6105}
+    country_weights: {United States: 0.2065, Hong Kong: 0.1017, Australia: 0.0960,
+                      France: 0.0870, Other: 0.5088}
+    sector_weights: {Financials: 0.3819, Consumer Discretionary: 0.0937, Real Estate: 0.0783,
+                     Industrials: 0.0769, Other: 0.3692}
+    top_holdings:
+      - {name: Legal & General Group, weight: 0.0224}
+      - {name: Teleperformance, weight: 0.0205}
+      - {name: SITC International, weight: 0.0202}
+      - {name: Signify, weight: 0.0193}
+      - {name: Taylor Wimpey, weight: 0.0179}
+      - {name: Aker BP, weight: 0.0176}
+      - {name: Fortescue, weight: 0.0166}
+      - {name: Aegon, weight: 0.0163}
+      - {name: HP, weight: 0.0158}
+      - {name: Investec, weight: 0.0151}
 
   fidelity_global_quality_income:
     index_name: Fidelity Global Quality Income
@@ -820,12 +1109,25 @@ indices:
     replication: physical
     factor_tilt: [dividend, quality, developed-markets]
     as_of: 2026-05
-    source: Fidelity factsheet
-    data_complete: false
-    region_weights: {North America: 0.60, Europe: 0.22, Developed Asia-Pacific: 0.18}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / Fidelity Global Quality Income factsheet
+    data_complete: true
+    region_weights: {North America: 0.6778, Developed Asia-Pacific: 0.0649, Europe: 0.0671,
+                     Other: 0.1902}
+    country_weights: {United States: 0.6778, Japan: 0.0649, Switzerland: 0.0370,
+                      France: 0.0301, Other: 0.1902}
+    sector_weights: {Information Technology: 0.3038, Financials: 0.1448, Industrials: 0.1063,
+                     Consumer Discretionary: 0.0920, Other: 0.3531}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0566}
+      - {name: Apple, weight: 0.0513}
+      - {name: Alphabet A, weight: 0.0456}
+      - {name: Microsoft, weight: 0.0374}
+      - {name: Broadcom, weight: 0.0254}
+      - {name: Meta Platforms, weight: 0.0176}
+      - {name: Eli Lilly, weight: 0.0113}
+      - {name: JPMorgan Chase, weight: 0.0111}
+      - {name: ASML Holding, weight: 0.0094}
+      - {name: Cisco Systems, weight: 0.0086}
 
   # ---------------------------------------------------------------- Sector & thematic
   mvis_semiconductor:
@@ -892,13 +1194,25 @@ indices:
     replication: physical
     factor_tilt: [thematic, artificial-intelligence, technology]
     as_of: 2026-05
-    source: WisdomTree factsheet
-    data_complete: false
-    region_weights: {North America: 0.65, Developed Asia-Pacific: 0.18, Europe: 0.08,
-                     Other: 0.09}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / WisdomTree Artificial Intelligence factsheet
+    data_complete: true
+    region_weights: {North America: 0.6638, Developed Asia-Pacific: 0.0261, Europe: 0.0507,
+                     Other: 0.2594}
+    country_weights: {United States: 0.6638, South Korea: 0.0570, Netherlands: 0.0507,
+                      Japan: 0.0261, Other: 0.2024}
+    sector_weights: {Information Technology: 0.7064, Communication Services: 0.0850,
+                     Consumer Discretionary: 0.0381, Industrials: 0.0217, Other: 0.1488}
+    top_holdings:
+      - {name: AMD, weight: 0.0495}
+      - {name: Marvell Technology, weight: 0.0383}
+      - {name: Micron Technology, weight: 0.0342}
+      - {name: Astera Labs, weight: 0.0336}
+      - {name: SK hynix, weight: 0.0316}
+      - {name: Nebius Group, weight: 0.0285}
+      - {name: Qualcomm, weight: 0.0262}
+      - {name: Amazon, weight: 0.0249}
+      - {name: Alphabet A, weight: 0.0239}
+      - {name: STMicroelectronics, weight: 0.0238}
 
   istoxx_robotics:
     index_name: iSTOXX FactSet Automation & Robotics
@@ -909,13 +1223,25 @@ indices:
     replication: physical
     factor_tilt: [thematic, robotics, automation, industrials, technology]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
-    region_weights: {North America: 0.45, Developed Asia-Pacific: 0.30, Europe: 0.20,
-                     Other: 0.05}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Automation & Robotics factsheet
+    data_complete: true
+    region_weights: {North America: 0.5576, Developed Asia-Pacific: 0.1580, Europe: 0.1097,
+                     Other: 0.1747}
+    country_weights: {United States: 0.5576, Japan: 0.1580, Switzerland: 0.0596,
+                      Germany: 0.0501, Other: 0.1747}
+    sector_weights: {Information Technology: 0.7029, Industrials: 0.2336,
+                     Consumer Discretionary: 0.0213, Health Care: 0.0157, Other: 0.0265}
+    top_holdings:
+      - {name: Intel, weight: 0.0988}
+      - {name: AMD, weight: 0.0802}
+      - {name: Advantest, weight: 0.0528}
+      - {name: KLA, weight: 0.0430}
+      - {name: Teradyne, weight: 0.0354}
+      - {name: ABB, weight: 0.0353}
+      - {name: NVIDIA, weight: 0.0281}
+      - {name: FANUC, weight: 0.0269}
+      - {name: Rockwell Automation, weight: 0.0266}
+      - {name: Microchip Technology, weight: 0.0261}
 
   istoxx_digitalisation:
     index_name: STOXX Global Digitalisation
@@ -943,13 +1269,24 @@ indices:
     replication: physical
     factor_tilt: [thematic, healthcare, health-care]
     as_of: 2026-05
-    source: iShares factsheet (single-sector = Health Care dominated)
-    data_complete: false
-    region_weights: {North America: 0.70, Europe: 0.18, Developed Asia-Pacific: 0.09,
-                     Other: 0.03}
-    country_weights: {}
-    sector_weights: {Health Care: 1.0}
-    top_holdings: []
+    source: justETF / iShares Healthcare Innovation factsheet
+    data_complete: true
+    region_weights: {North America: 0.6324, Europe: 0.0412, Developed Asia-Pacific: 0.0370,
+                     Other: 0.2894}
+    country_weights: {United States: 0.6324, Switzerland: 0.0412, South Korea: 0.0394,
+                      Japan: 0.0370, Other: 0.2500}
+    sector_weights: {Health Care: 0.8940, Information Technology: 0.0142, Other: 0.0918}
+    top_holdings:
+      - {name: Illumina, weight: 0.0283}
+      - {name: UCB, weight: 0.0238}
+      - {name: Moderna, weight: 0.0226}
+      - {name: Merck, weight: 0.0223}
+      - {name: Biogen, weight: 0.0221}
+      - {name: Johnson & Johnson, weight: 0.0220}
+      - {name: Natera, weight: 0.0220}
+      - {name: Guardant Health, weight: 0.0206}
+      - {name: Novartis, weight: 0.0199}
+      - {name: Neurocrine Biosciences, weight: 0.0194}
 
   sp_global_water:
     index_name: S&P Global Water
@@ -960,13 +1297,25 @@ indices:
     replication: physical
     factor_tilt: [thematic, water, utilities, industrials]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
-    region_weights: {North America: 0.55, Europe: 0.30, Developed Asia-Pacific: 0.10,
-                     Other: 0.05}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Global Water factsheet
+    data_complete: true
+    region_weights: {North America: 0.5186, Europe: 0.1848, Emerging Markets: 0.1059,
+                     Other: 0.1907}
+    country_weights: {United States: 0.5186, United Kingdom: 0.1205, Brazil: 0.1059,
+                      Switzerland: 0.0643, Other: 0.1907}
+    sector_weights: {Utilities: 0.4663, Industrials: 0.3688, Materials: 0.0618,
+                     Energy: 0.0231, Other: 0.0800}
+    top_holdings:
+      - {name: American Water Works, weight: 0.0759}
+      - {name: Sabesp, weight: 0.0735}
+      - {name: Xylem, weight: 0.0719}
+      - {name: Essential Utilities, weight: 0.0576}
+      - {name: Veralto, weight: 0.0509}
+      - {name: United Utilities, weight: 0.0452}
+      - {name: Severn Trent, weight: 0.0421}
+      - {name: Ecolab, weight: 0.0393}
+      - {name: Geberit, weight: 0.0344}
+      - {name: Advanced Drainage Systems, weight: 0.0331}
 
   stoxx_ev:
     index_name: STOXX Global Electric Vehicles & Driving Technology
@@ -977,13 +1326,25 @@ indices:
     replication: physical
     factor_tilt: [thematic, electric-vehicles, consumer-discretionary, technology]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
-    region_weights: {North America: 0.45, Developed Asia-Pacific: 0.25, Europe: 0.15,
-                     Emerging Markets: 0.10, Other: 0.05}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares Electric Vehicles and Driving Technology factsheet
+    data_complete: true
+    region_weights: {North America: 0.3446, Emerging Markets: 0.2511, Europe: 0.0985,
+                     Other: 0.3058}
+    country_weights: {United States: 0.3446, South Korea: 0.1523, Taiwan: 0.0988,
+                      Germany: 0.0985, Other: 0.3058}
+    sector_weights: {Information Technology: 0.6610, Consumer Discretionary: 0.2692,
+                     Industrials: 0.0515, Materials: 0.0022, Other: 0.0161}
+    top_holdings:
+      - {name: AMD, weight: 0.1068}
+      - {name: Delta Electronics, weight: 0.0988}
+      - {name: Samsung Electro-Mechanics, weight: 0.0836}
+      - {name: Infineon Technologies, weight: 0.0562}
+      - {name: Renesas Electronics, weight: 0.0529}
+      - {name: STMicroelectronics, weight: 0.0473}
+      - {name: Qualcomm, weight: 0.0402}
+      - {name: NXP Semiconductors, weight: 0.0375}
+      - {name: NVIDIA, weight: 0.0374}
+      - {name: Tesla, weight: 0.0341}
 
   sp_clean_energy:
     index_name: S&P Global Clean Energy Transition
@@ -1052,12 +1413,23 @@ indices:
     replication: physical
     factor_tilt: [real-estate, dividend, europe]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: justETF / iShares European Property Yield factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
-    sector_weights: {Real Estate: 1.0}
-    top_holdings: []
+    country_weights: {France: 0.2310, Switzerland: 0.1924, Germany: 0.1768,
+                      Sweden: 0.1236, Other: 0.2762}
+    sector_weights: {Real Estate: 0.9669, Other: 0.0331}
+    top_holdings:
+      - {name: Vonovia, weight: 0.1136}
+      - {name: Unibail-Rodamco-Westfield, weight: 0.0898}
+      - {name: Swiss Prime Site, weight: 0.0859}
+      - {name: PSP Swiss Property, weight: 0.0555}
+      - {name: Klepierre, weight: 0.0541}
+      - {name: MERLIN Properties, weight: 0.0466}
+      - {name: Aedifica, weight: 0.0442}
+      - {name: LEG Immobilien, weight: 0.0314}
+      - {name: Warehouses De Pauw, weight: 0.0310}
+      - {name: Castellum, weight: 0.0297}
 
   # ---------------------------------------------------------------- Commodities
   gold:
@@ -1193,10 +1565,10 @@ indices:
     replication: physical
     factor_tilt: [investment-grade, government, eurozone, short-duration]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: justETF / iShares Euro Government Bond 1-3yr factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
+    country_weights: {France: 0.1177, Spain: 0.0720, Italy: 0.0560, Other: 0.7543}
     credit_quality: {Investment grade: 1.0}
     sector_weights: {}
     top_holdings: []
@@ -1210,10 +1582,11 @@ indices:
     replication: physical
     factor_tilt: [investment-grade, government, eurozone, long-duration]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: justETF / iShares Euro Government Bond 15-30yr factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
+    country_weights: {France: 0.2823, Germany: 0.2357, Italy: 0.2283, Spain: 0.1271,
+                      Netherlands: 0.0804, Other: 0.0462}
     credit_quality: {Investment grade: 1.0}
     sector_weights: {}
     top_holdings: []
@@ -1227,10 +1600,11 @@ indices:
     replication: physical
     factor_tilt: [government, eurozone, inflation-linked]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: justETF / iShares Euro Inflation Linked Government Bond factsheet
+    data_complete: true
     region_weights: {Europe: 1.0}
-    country_weights: {}
+    country_weights: {France: 0.4121, Italy: 0.2712, Spain: 0.1343, Germany: 0.1331,
+                      Other: 0.0493}
     credit_quality: {Investment grade: 1.0}
     sector_weights: {}
     top_holdings: []
@@ -1244,8 +1618,8 @@ indices:
     replication: physical
     factor_tilt: [investment-grade, government, germany, safe-haven]
     as_of: 2026-05
-    source: iShares factsheet (German Bunds)
-    data_complete: false
+    source: iShares eb.rexx Government Germany factsheet (single-country Bunds, IG sovereign)
+    data_complete: true
     region_weights: {Europe: 1.0}
     country_weights: {Germany: 1.0}
     credit_quality: {Investment grade: 1.0}
@@ -1261,8 +1635,8 @@ indices:
     replication: physical
     factor_tilt: [government, us, short-duration, treasury]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: iShares USD Treasury Bond 1-3yr factsheet (100% US sovereign, IG)
+    data_complete: true
     region_weights: {North America: 1.0}
     country_weights: {United States: 1.0}
     credit_quality: {Investment grade: 1.0}
@@ -1278,8 +1652,8 @@ indices:
     replication: physical
     factor_tilt: [government, us, intermediate-duration, treasury]
     as_of: 2026-05
-    source: iShares factsheet
-    data_complete: false
+    source: iShares USD Treasury Bond 7-10yr factsheet (100% US sovereign, IG)
+    data_complete: true
     region_weights: {North America: 1.0}
     country_weights: {United States: 1.0}
     credit_quality: {Investment grade: 1.0}
@@ -1296,12 +1670,25 @@ indices:
     replication: physical
     factor_tilt: [esg, sri, developed-markets, concentrated]
     as_of: 2026-05
-    source: iShares factsheet (SRI-screened MSCI World)
-    data_complete: false
-    region_weights: {North America: 0.72, Europe: 0.16, Developed Asia-Pacific: 0.12}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    source: justETF / iShares MSCI World SRI factsheet
+    data_complete: true
+    region_weights: {North America: 0.5762, Developed Asia-Pacific: 0.0723, Europe: 0.0980,
+                     Other: 0.2535}
+    country_weights: {United States: 0.5762, Japan: 0.0723, Netherlands: 0.0589,
+                      Switzerland: 0.0391, Other: 0.2535}
+    sector_weights: {Information Technology: 0.3090, Financials: 0.1331,
+                     Consumer Discretionary: 0.1085, Industrials: 0.0971, Other: 0.3523}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0822}
+      - {name: ASML Holding, weight: 0.0386}
+      - {name: Tesla, weight: 0.0385}
+      - {name: Verizon Communications, weight: 0.0267}
+      - {name: Visa, weight: 0.0251}
+      - {name: Lam Research, weight: 0.0244}
+      - {name: Walt Disney, weight: 0.0241}
+      - {name: Applied Materials, weight: 0.0220}
+      - {name: Palo Alto Networks, weight: 0.0220}
+      - {name: Coca-Cola, weight: 0.0141}
 
   msci_em_sri:
     index_name: MSCI EM SRI Select Reduced Fossil Fuels
@@ -1329,13 +1716,26 @@ indices:
     replication: physical
     factor_tilt: [esg, global, all-cap]
     as_of: 2026-05
-    source: Vanguard factsheet (ESG-screened FTSE Global All Cap)
-    data_complete: false
+    source: justETF / Vanguard ESG Global All Cap factsheet
+    data_complete: true
     region_weights: {North America: 0.62, Europe: 0.15, Developed Asia-Pacific: 0.10,
                      Emerging Markets: 0.13}
-    country_weights: {}
-    sector_weights: {}
-    top_holdings: []
+    country_weights: {United States: 0.5804, Japan: 0.0538, Taiwan: 0.0397,
+                      South Korea: 0.0301, Other: 0.2960}
+    sector_weights: {Information Technology: 0.3583, Financials: 0.1458,
+                     Consumer Discretionary: 0.1043, Communication Services: 0.0877,
+                     Other: 0.3039}
+    top_holdings:
+      - {name: NVIDIA, weight: 0.0521}
+      - {name: Apple, weight: 0.0473}
+      - {name: Microsoft, weight: 0.0352}
+      - {name: Amazon, weight: 0.0274}
+      - {name: Alphabet A, weight: 0.0242}
+      - {name: Broadcom, weight: 0.0217}
+      - {name: Taiwan Semiconductor, weight: 0.0193}
+      - {name: Alphabet C, weight: 0.0178}
+      - {name: Meta Platforms, weight: 0.0146}
+      - {name: Tesla, weight: 0.0130}
 
   # ---------------------------------------------------------------- Multi-asset (LifeStrategy)
   lifestrategy_40:

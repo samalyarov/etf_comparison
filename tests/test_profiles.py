@@ -54,6 +54,43 @@ def test_full_profiles_carry_sector_country_and_holdings():
             assert p.top_holdings, f"{isin} flagged full but has no holdings"
 
 
+def test_full_bond_profiles_carry_country_and_credit():
+    # For bonds, "full" promises a country breakdown and a credit-quality bucket
+    # (GICS sectors don't apply). Enforce that so a bond can't be flagged full empty.
+    profs = profiles.load_profiles()
+    for isin, p in profs.items():
+        if p.data_complete and p.asset_class == "bond":
+            assert p.country_weights, f"{isin} bond flagged full but has no countries"
+            assert p.credit_quality, f"{isin} bond flagged full but has no credit quality"
+
+
+def test_lookthrough_coverage_floor():
+    # The 2026-07 look-through pass raised full profiles to 82/92 (41 partials upgraded).
+    # Coverage is monotonic — assert a floor, never a brittle exact count, so future
+    # research can only push it up.
+    cs = profiles.coverage_summary()
+    assert cs["total"] >= 90
+    assert cs["full"] >= 82, cs
+    assert cs["partial"] == cs["total"] - cs["full"]
+
+
+def test_upgraded_funds_carry_full_lookthrough():
+    # Spot-check funds that moved partial -> full: they must resolve to their index and
+    # carry a real, non-empty look-through (guards against a future accidental blank-out).
+    profs = profiles.load_profiles()
+    for isin, index_id in [
+        ("IE00BKX55T58", "ftse_developed"),      # VHVG
+        ("IE00BKM4GZ66", "msci_em_imi"),         # EIMI
+        ("IE00B14X4Q57", "msci_emu"),            # CEU2
+        ("IE00BP3QZ601", "msci_world_quality"),  # IWQU
+        ("IE00B0M63284", "epra_nareit_europe"),  # IPRP (reit)
+    ]:
+        p = profs[isin]
+        assert p.index_id == index_id, isin
+        assert p.data_complete is True, isin
+        assert p.country_weights and p.sector_weights and p.top_holdings, isin
+
+
 # --------------------------------------------------------------------------- aggregation
 def test_portfolio_exposure_hand_computed():
     # 50% MSCI World (IT 0.3027) + 50% S&P 500 (IT 0.3888) -> IT 0.34575.
